@@ -25,6 +25,8 @@
     <!-- Akhir Navigasi -->
     <div class="container" id="body-content"></div>
     <script src="assets/vendor/materialize/js/materialize.min.js"></script>
+    <script src="assets/js/api.js"></script>
+
     <script src="assets/js/nav.js"></script>
 </body>
 
@@ -46,4 +48,9 @@
     } else {
         console.log("ServiceWorker belum didukung browser ini.");
     }
+
+    // REQUEST API UNTUK PERTAMA KALI
+    document.addEventListener("DOMContentLoaded", function () {
+        getArticles();
+    });
 </script>

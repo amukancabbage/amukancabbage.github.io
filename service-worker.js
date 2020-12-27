@@ -1,4 +1,4 @@
-const CACHE_NAME = "002";
+const CACHE_NAME = "003";
 var urlsToCache = [
     "/",
     "/nav.html",
@@ -9,6 +9,7 @@ var urlsToCache = [
     "/assets/vendor/materialize/css/materialize.min.css",
     "/assets/vendor/materialize/js/materialize.min.js",
     "/assets/js/nav.js",
+    "/assets/js/api.js",
     "/assets/image/juve512x512.png"
 ];
 
