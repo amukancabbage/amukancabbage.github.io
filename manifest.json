@@ -1,0 +1,16 @@
+{
+    "name": "PWA Futball App",
+    "short_name": "Futball App",
+    "description": "Submission Dicoding Football App",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#00897B",
+    "theme_color": "#00897B",
+    "icons": [
+        {
+            "src": "assets/image/juve512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

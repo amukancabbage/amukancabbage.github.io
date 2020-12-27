@@ -1,4 +1,4 @@
-const CACHE_NAME = "001";
+const CACHE_NAME = "002";
 var urlsToCache = [
     "/",
     "/nav.html",
@@ -8,7 +8,8 @@ var urlsToCache = [
     "/pages/contact.html",
     "/assets/vendor/materialize/css/materialize.min.css",
     "/assets/vendor/materialize/js/materialize.min.js",
-    "/assets/js/nav.js"
+    "/assets/js/nav.js",
+    "/assets/image/juve512x512.png"
 ];
 
 self.addEventListener("install", function (event) {
