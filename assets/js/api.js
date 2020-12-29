@@ -1,4 +1,3 @@
-var base_url = "https://reader-api.dicoding.dev/";
 var base_url_football = "https://api.football-data.org/v2/";
 // Blok kode yang akan di panggil jika fetch berhasil
 function status(response) {
@@ -21,36 +20,49 @@ function error(error) {
     console.log("Error : " + error);
 }
 // Blok kode untuk melakukan request data json
-function getArticles() {
-    fetch(base_url + "articles")
-        .then(status)
-        .then(json)
-        .then(function (data) {
-            // Objek/array JavaScript dari response.json() masuk lewat data.
-            // Menyusun komponen card artikel secara dinamis
-            var articlesHTML = "";
-            data.result.forEach(function (article) {
-                articlesHTML += `
-              <div class="card">
-                <a href="./article.html?id=${article.id}">
-                  <div class="card-image waves-effect waves-block waves-light">
-                    <img src="${article.thumbnail}" />
-                  </div>
-                </a>
-                <div class="card-content">
-                  <span class="card-title truncate">${article.title}</span>
-                  <p>${article.description}</p>
-                </div>
-              </div>
-            `;
-            });
-            // Sisipkan komponen card ke dalam elemen dengan id #content
-            document.getElementById("articles").innerHTML = articlesHTML;
-        })
-        .catch(error);
-}
 
 function getStandings() {
+
+  if ('caches' in window) {
+    caches.match(base_url_football + "competitions/2019/standings").then(function (response) {
+      if (response) {
+        response.json().then(function (data) {
+          var standingsHTML = `
+          <table class="striped">
+            <thead>
+              <tr>
+                <th>Pos</th>
+                <th colspan="2">Team</th>
+                <th></th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody>`;
+
+          standings = data.standings[0].table;
+          standings.forEach(function (data) {
+            standingsHTML += `
+                <tr>
+                <td>${data.position}</td>
+                <td><img alt="Team Logo" width="25" height="25" src="${data.team.crestUrl}" /><td>
+                <td>
+                  <a href="./team.html?id=${data.team.id}">
+                    ${data.team.name}
+                  </a>
+                </td>
+                <td>${data.points}</td>
+              </tr>`;
+              
+          });
+          
+          standingsHTML += `</tbody></table>`;
+          console.log(document.getElementById("standings"));
+          document.getElementById("standings").innerHTML = standingsHTML;
+        })
+      }
+    })
+    console.log("caches in window");
+  }
 
   fetch(base_url_football + "competitions/2019/standings",{
     method: "GET",
@@ -73,11 +85,10 @@ function getStandings() {
         `;
       standings = data.standings[0].table;
       standings.forEach(function (data) {
-        console.log(data);
         standingsHTML += `
               <tr>
                 <td>${data.position}</td>
-                <td><img width="25" height="25" src="${data.team.crestUrl}" /><td>
+                <td><img alt="Team Logo" width="25" height="25" src="${data.team.crestUrl}" /><td>
                 <td>
                   <a href="./team.html?id=${data.team.id}">
                     ${data.team.name}
@@ -87,11 +98,13 @@ function getStandings() {
               </tr>`;
       });
 
-      standingsHTML += `</tbody></table>`
+      standingsHTML += `</tbody></table>`;
 
 
       // Sisipkan komponen card ke dalam elemen dengan id #content
       document.getElementById("standings").innerHTML = standingsHTML;
+      console.log("fetched");
+
     })
     .catch(error);
 }
@@ -110,10 +123,10 @@ function getTeamById() {
       // Objek JavaScript dari response.json() masuk lewat variabel data.
       console.log(data);
       // Menyusun komponen card artikel secara dinamis
-      var articleHTML = `
+      var teamHTML = `
               <div class="card">
                 <div class="card-image waves-effect waves-block waves-light">
-                  <img height="90" src="${data.crestUrl}" />
+                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
                 </div>
                 <div class="card-content">
                   <span class="card-title">${data.name}</span>
@@ -122,6 +135,6 @@ function getTeamById() {
               </div>
             `;
       // Sisipkan komponen card ke dalam elemen dengan id #content
-      document.getElementById("body-content").innerHTML = articleHTML;
+      document.getElementById("body-content").innerHTML = teamHTML;
     });
 }
