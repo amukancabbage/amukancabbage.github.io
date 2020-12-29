@@ -64,8 +64,8 @@ function getStandings() {
         <thead>
           <tr>
             <th>Pos</th>
-            <th></th>
             <th colspan="2">Team</th>
+            <th></th>
             <th>Points</th>
           </tr>
         </thead>
@@ -78,21 +78,13 @@ function getStandings() {
               <tr>
                 <td>${data.position}</td>
                 <td><img width="25" height="25" src="${data.team.crestUrl}" /><td>
-                <td>${data.team.name}</td>
+                <td>
+                  <a href="./team.html?id=${data.team.id}">
+                    ${data.team.name}
+                  </a>
+                </td>
                 <td>${data.points}</td>
               </tr>`;
-              // <div class="card">
-              //   <a href="./team.html?id=${data.team.id}">
-              //     <div class="card-image waves-effect waves-block waves-light">
-              //       <img src="${data.team.crestUrl}" />
-              //     </div>
-              //   </a>
-              //   <div class="card-content">
-              //     <span class="card-title truncate">${data.team.name}</span>
-              //     <p>${data.team.name}</p>
-              //   </div>
-              // </div>
-            
       });
 
       standingsHTML += `</tbody></table>`
@@ -102,4 +94,34 @@ function getStandings() {
       document.getElementById("standings").innerHTML = standingsHTML;
     })
     .catch(error);
+}
+
+function getTeamById() {
+  // Ambil nilai query parameter (?id=)
+  var urlParams = new URLSearchParams(window.location.search);
+  var idParam = urlParams.get("id");
+  fetch(base_url_football + "teams/" + idParam, {
+    method: "GET",
+    headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
+  })
+    .then(status)
+    .then(json)
+    .then(function (data) {
+      // Objek JavaScript dari response.json() masuk lewat variabel data.
+      console.log(data);
+      // Menyusun komponen card artikel secara dinamis
+      var articleHTML = `
+              <div class="card">
+                <div class="card-image waves-effect waves-block waves-light">
+                  <img height="90" src="${data.crestUrl}" />
+                </div>
+                <div class="card-content">
+                  <span class="card-title">${data.name}</span>
+                  ${snarkdown(data.address)}
+                </div>
+              </div>
+            `;
+      // Sisipkan komponen card ke dalam elemen dengan id #content
+      document.getElementById("body-content").innerHTML = articleHTML;
+    });
 }
