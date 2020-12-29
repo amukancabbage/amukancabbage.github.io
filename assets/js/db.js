@@ -42,7 +42,7 @@ function getById(id) {
             .then(function (db) {
                 var tx = db.transaction("teams", "readwrite");
                 var store = tx.objectStore("teams");
-                return store.get(id);
+                return store.get(parseInt(id));
             })
             .then(function (teams) {
                 resolve(teams);
