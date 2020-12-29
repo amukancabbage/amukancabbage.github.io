@@ -1,4 +1,5 @@
 var base_url = "https://reader-api.dicoding.dev/";
+var base_url_football = "https://api.football-data.org/v2/";
 // Blok kode yang akan di panggil jika fetch berhasil
 function status(response) {
     if (response.status !== 200) {
@@ -47,4 +48,58 @@ function getArticles() {
             document.getElementById("articles").innerHTML = articlesHTML;
         })
         .catch(error);
+}
+
+function getStandings() {
+
+  fetch(base_url_football + "competitions/2019/standings",{
+    method: "GET",
+    headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
+  })
+    .then(status)
+    .then(json)
+    .then(function (data) {
+
+      var standingsHTML = `<table class="striped">
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th></th>
+            <th colspan="2">Team</th>
+            <th>Points</th>
+          </tr>
+        </thead>
+        <tbody>
+        `;
+      standings = data.standings[0].table;
+      standings.forEach(function (data) {
+        console.log(data);
+        standingsHTML += `
+              <tr>
+                <td>${data.position}</td>
+                <td><img width="25" height="25" src="${data.team.crestUrl}" /><td>
+                <td>${data.team.name}</td>
+                <td>${data.points}</td>
+              </tr>`;
+              // <div class="card">
+              //   <a href="./team.html?id=${data.team.id}">
+              //     <div class="card-image waves-effect waves-block waves-light">
+              //       <img src="${data.team.crestUrl}" />
+              //     </div>
+              //   </a>
+              //   <div class="card-content">
+              //     <span class="card-title truncate">${data.team.name}</span>
+              //     <p>${data.team.name}</p>
+              //   </div>
+              // </div>
+            
+      });
+
+      standingsHTML += `</tbody></table>`
+
+
+      // Sisipkan komponen card ke dalam elemen dengan id #content
+      document.getElementById("standings").innerHTML = standingsHTML;
+    })
+    .catch(error);
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "003";
+const CACHE_NAME = "004";
 var urlsToCache = [
     "/",
     "/nav.html",
