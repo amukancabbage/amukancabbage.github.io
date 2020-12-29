@@ -38,8 +38,9 @@ function getStandings() {
               </tr>
             </thead>
             <tbody>`;
-
+        
           standings = data.standings[0].table;
+          console.log(standings);
           standings.forEach(function (data) {
             standingsHTML += `
                 <tr>
@@ -110,20 +111,15 @@ function getStandings() {
 }
 
 function getTeamById() {
-  // Ambil nilai query parameter (?id=)
-  var urlParams = new URLSearchParams(window.location.search);
-  var idParam = urlParams.get("id");
-  fetch(base_url_football + "teams/" + idParam, {
-    method: "GET",
-    headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
-  })
-    .then(status)
-    .then(json)
-    .then(function (data) {
-      // Objek JavaScript dari response.json() masuk lewat variabel data.
-      console.log(data);
-      // Menyusun komponen card artikel secara dinamis
-      var teamHTML = `
+  return new Promise(function (resolve, reject) {
+    // Ambil nilai query parameter (?id=)
+    var urlParams = new URLSearchParams(window.location.search);
+    var idParam = urlParams.get("id");
+    if ("caches" in window) {
+      caches.match(base_url_football + "teams/" + idParam).then(function (response) {
+        if (response) {
+          response.json().then(function (data) {
+            var teamHTML = `
               <div class="card">
                 <div class="card-image waves-effect waves-block waves-light">
                   <img alt="Team Logo" height="90" src="${data.crestUrl}" />
@@ -134,7 +130,41 @@ function getTeamById() {
                 </div>
               </div>
             `;
-      // Sisipkan komponen card ke dalam elemen dengan id #content
-      document.getElementById("body-content").innerHTML = teamHTML;
-    });
+            // Sisipkan komponen card ke dalam elemen dengan id #content
+            document.getElementById("body-content").innerHTML = teamHTML;
+            resolve(data);
+          });
+        }
+      });
+    }
+    fetch(base_url_football + "teams/" + idParam, {
+      method: "GET",
+      headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
+    })
+      .then(status)
+      .then(json)
+      .then(function (data) {
+        // Objek JavaScript dari response.json() masuk lewat variabel data.
+        // console.log(data);
+        // Menyusun komponen card artikel secara dinamis
+        var teamHTML = `
+              <div class="card">
+                <div class="card-image waves-effect waves-block waves-light">
+                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
+                </div>
+                <div class="card-content">
+                  <span class="card-title">${data.name}</span>
+                  ${snarkdown(data.address)}
+                </div>
+              </div>
+            `;
+        // Sisipkan komponen card ke dalam elemen dengan id #content
+        document.getElementById("body-content").innerHTML = teamHTML;
+        resolve(data);
+      });
+  });
+
+
+ 
+  
 }
