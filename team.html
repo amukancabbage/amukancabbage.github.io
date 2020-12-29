@@ -16,7 +16,7 @@
     <!-- Navigasi -->
     <nav class="teal lighten-1" role="navigation">
         <div class="nav-wrapper container">
-            <a href="#" class="brand-logo" id="logo-container">Team Detail</a>
+            <a href="#" class="brand-logo" id="logo-container">Team Details</a>
             <a href="./index.html" class="sidenav-trigger" data-target="nav-mobile">
                 <i class="material-icons">arrow_back</i>
             </a>
@@ -26,9 +26,16 @@
     </nav>
     <!-- Akhir Navigasi -->
     <div class="container" id="body-content"></div>
+    <div class="fixed-action-btn">
+        <a class="btn-floating btn-large red" id="save">
+            <i class="large material-icons">star_outline</i>
+        </a>
+    </div>
     <script type="text/javascript" src="https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js"></script>
     <script src="assets/vendor/materialize/js/materialize.min.js"></script>
     <script src="assets/js/api.js"></script>
+    <script src="assets/vendor/jakearchibald/js/idb.js"></script>
+    <script src="assets/js/db.js"></script>
     <script>
         // REGISTER SERVICE WORKER
         if ("serviceWorker" in navigator) {
@@ -47,7 +54,11 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
-                getTeamById();
+            getTeamById();
+            var save = document.getElementById("save");
+            save.onclick = function () {
+                console.log("Tombol FAB di klik.");
+            }
         });
     </script>
 </body>
