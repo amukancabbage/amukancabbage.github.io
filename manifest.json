@@ -6,6 +6,7 @@
     "display": "standalone",
     "background_color": "#00897B",
     "theme_color": "#00897B",
+    "gcm_sender_id": "1015820604484",
     "icons": [
         {
             "src": "assets/image/juve512x512.png",
