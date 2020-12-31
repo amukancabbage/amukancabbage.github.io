@@ -1,4 +1,4 @@
-const CACHE_NAME = "002";
+const CACHE_NAME = "001";
 var urlsToCache = [
     "/",
     "/nav.html",
@@ -12,6 +12,7 @@ var urlsToCache = [
     "/assets/js/nav.js",
     "/assets/js/api.js",
     "/assets/js/db.js",
+    "/favicon.ico",
     "/assets/image/juve512x512.png"
 ];
 
