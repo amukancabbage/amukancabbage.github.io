@@ -13,6 +13,10 @@ var urlsToCache = [
     "/assets/js/api.js",
     "/assets/js/db.js",
     "/favicon.ico",
+    "/manifest.json",
+    "https://fonts.googleapis.com/icon?family=Material+Icons",
+    "https://fonts.gstatic.com/s/materialicons/v55/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2",
+    "https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js",
     "/assets/image/juve512x512.png"
 ];
 
