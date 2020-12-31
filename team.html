@@ -56,22 +56,35 @@
         document.addEventListener("DOMContentLoaded", function () {
 
             var urlParams = new URLSearchParams(window.location.search);
+            var idParam = urlParams.get("id");
             var isFromSaved = urlParams.get("saved");
             var btnSave = document.getElementById("save");
-            if (isFromSaved) {
-                // Hide fab jika dimuat dari indexed db
-                btnSave.style.display = 'none';
+            const STAR_ON = '<i class="large material-icons">star</i>'
+            const STAR_OFF = '<i class="large material-icons">star_outline</i>'
+            cekAdaData(idParam).then(function(){
+                btnSave.innerHTML = STAR_ON;
+                item = getSavedTeamById();
+                console.log("Dari Favorite");
+            })
+            .catch(function(){
+                btnSave.innerHTML = STAR_OFF;
+                item = getTeamById();
+                console.log("Dari Request");
 
-                // ambil artikel lalu tampilkan
-                getSavedTeamById();
-            } else {
-                var item = getTeamById();
-            }
+            });
 
             btnSave.onclick = function () {
-                item.then(function (team) {
-                    saveForLater(team);
-                });
+                if(btnSave.innerHTML == STAR_ON){
+                    btnSave.innerHTML = STAR_OFF;
+                    item.then(function (team) {
+                        deleteFavorite(team);
+                    });
+                }else{
+                    btnSave.innerHTML = STAR_ON
+                    item.then(function (team) {
+                        saveFavorite(team);
+                    });
+                }
             }
             
         });

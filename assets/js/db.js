@@ -9,17 +9,42 @@ var dbPromised = idb.open("football", 1, function (upgradeDb) {
 
 
 
-function saveForLater(team) {
-    dbPromised
-        .then(function (db) {
-            var tx = db.transaction("teams", "readwrite");
-            var store = tx.objectStore("teams");
-            store.add(team);
-            return tx.complete;
-        })
-        .then(function () {
-            console.log("Tim berhasil di simpan.");
+function saveFavorite(team) {
+    return new Promise(function (resolve, reject) {
+        dbPromised
+            .then(function(db){
+                tx = db.transaction("teams", "readwrite");
+                var store = tx.objectStore("teams");
+                return store.add(team);
+            })
+            .then(function(){
+                resolve(tx.complete);
+                console.log("Tim berhasil di simpan.");
+            })
+            .catch (function (e) {
+                console.log(e);
+                console.log("Tim gagal di simpan");
+            });
         });
+}
+
+function deleteFavorite(team){
+    return new Promise(function (resolve, reject) {
+        dbPromised
+            .then(function (db) {
+                tx = db.transaction("teams", "readwrite");
+                var store = tx.objectStore("teams");
+                return store.delete(team.id);
+            })
+            .then(function () {
+                resolve(tx.complete);
+                console.log("Tim berhasil di hapus.");
+            })
+            .catch(function (e) {
+                console.log(e);
+                console.log("Tim gagal dihapus");
+            });
+    });
 }
 
 function getAll() {
@@ -45,7 +70,29 @@ function getById(id) {
                 return store.get(parseInt(id));
             })
             .then(function (teams) {
-                resolve(teams);
+                if(teams!=undefined){
+                    resolve(teams);
+                }else{
+                    reject("kosong");
+                }
+            })
+    });
+}
+
+function cekAdaData(id){
+    return new Promise(function (resolve, reject) {
+        dbPromised
+            .then(function (db) {
+                var tx = db.transaction("teams", "readwrite");
+                var store = tx.objectStore("teams");
+                return store.get(parseInt(id));
+            })
+            .then(function (teams) {
+                if (teams != undefined) {
+                    resolve(true);
+                } else {
+                    reject(false);
+                }
             })
     });
 }
