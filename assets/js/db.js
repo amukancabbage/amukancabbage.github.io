@@ -19,11 +19,11 @@ function saveFavorite(team) {
             })
             .then(function(){
                 resolve(tx.complete);
-                console.log("Tim berhasil di simpan.");
+                M.toast({ html: 'Tim berhasil di simpan.' })
             })
             .catch (function (e) {
                 console.log(e);
-                console.log("Tim gagal di simpan");
+                M.toast({ html: 'Tim gagal di simpan.' })
             });
         });
 }
@@ -38,11 +38,11 @@ function deleteFavorite(team){
             })
             .then(function () {
                 resolve(tx.complete);
-                console.log("Tim berhasil di hapus.");
+                M.toast({ html: 'Tim berhasil dihapus.' })
             })
             .catch(function (e) {
                 console.log(e);
-                console.log("Tim gagal dihapus");
+                M.toast({ html: 'Tim gagal dihapus.' })
             });
     });
 }
