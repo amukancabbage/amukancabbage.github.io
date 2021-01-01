@@ -139,7 +139,10 @@ function getTeamById() {
 
 function getSavedTeams() {
   getAll().then(function (standings) {
-    var standingsHTML = `<table class="striped">
+    console.log(standings);
+    let standingsHTML
+    if(standings.length > 0){
+      standingsHTML = `<table class="striped">
         <thead>
           <tr>
             <th colspan="2">Team</th>
@@ -148,8 +151,8 @@ function getSavedTeams() {
         </thead>
         <tbody>
         `;
-    standings.forEach(function (data) {
-      standingsHTML += `
+      standings.forEach(function (data) {
+        standingsHTML += `
               <tr>
                 <td><img alt="Team Logo" width="25" height="25" src="${data.crestUrl}" /><td>
                 <td>
@@ -158,9 +161,13 @@ function getSavedTeams() {
                   </a>
                 </td>
               </tr>`;
-    });
+      });
 
-    standingsHTML += `</tbody></table>`;
+      standingsHTML += `</tbody></table>`;
+    }else{
+      standingsHTML = "<h5>Data masih kosong</h5>"
+    }
+    
     // Sisipkan komponen card ke dalam elemen dengan id #body-content
     document.getElementById("body-content").innerHTML = standingsHTML;
   });
