@@ -12,6 +12,7 @@ var urlsToCache = [
     "/assets/js/nav.js",
     "/assets/js/api.js",
     "/assets/js/db.js",
+    "/service-worker-register.js",
     "/favicon.ico",
     "/manifest.json",
     "https://fonts.googleapis.com/icon?family=Material+Icons",
