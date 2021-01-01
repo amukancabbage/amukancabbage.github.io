@@ -19,13 +19,9 @@ function error(error) {
   console.log("Error : " + error);
 }
 
-function getStandings() {
+function createTable(data) {
 
-  if ('caches' in window) {
-    caches.match(base_url_football + "competitions/2019/standings").then(function (response) {
-      if (response) {
-        response.json().then(function (data) {
-          var standingsHTML = `
+  let tableHTML = `
           <table class="striped">
             <thead>
               <tr>
@@ -37,24 +33,49 @@ function getStandings() {
             </thead>
             <tbody>`;
 
-          standings = data.standings[0].table;
-          standings.forEach(function (data) {
-            standingsHTML += `
+  data.forEach(function (team) {
+    tableHTML += `
                 <tr>
-                <td>${data.position}</td>
-                <td><img alt="Team Logo" width="25" height="25" src="${data.team.crestUrl}" /><td>
+                <td>${team.position}</td>
+                <td><img alt="Team Logo" width="25" height="25" src="${team.team.crestUrl}" /><td>
                 <td>
-                  <a href="./team.html?id=${data.team.id}">
-                    ${data.team.name}
+                  <a href="./team.html?id=${team.team.id}">
+                    ${team.team.name}
                   </a>
                 </td>
-                <td>${data.points}</td>
+                <td>${team.points}</td>
               </tr>`;
+  });
 
-          });
+  tableHTML += `</tbody></table>`;
+  return tableHTML;
+}
 
-          standingsHTML += `</tbody></table>`;
-          document.getElementById("standings").innerHTML = standingsHTML;
+function createCard(data) {
+  return teamHTML = `
+              <div class="card">
+                <div class="card-image waves-effect waves-block waves-light">
+                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
+                </div>
+                <div class="card-content">
+                  <span class="card-title">${data.name}</span>
+                  ${snarkdown(data.address)}
+                </div>
+              </div>
+            `;
+}
+
+function getStandings() {
+
+  if ('caches' in window) {
+    caches.match(base_url_football + "competitions/2019/standings").then(function (response) {
+      if (response) {
+        response.json().then(function (data) {
+
+          standings = data.standings[0].table;
+          document.getElementById("standings").innerHTML = createTable(standings);
+          console.log("dari caches");
+
         })
       }
     })
@@ -68,38 +89,10 @@ function getStandings() {
     .then(json)
     .then(function (data) {
 
-      var standingsHTML = `<table class="striped">
-        <thead>
-          <tr>
-            <th>Pos</th>
-            <th colspan="2">Team</th>
-            <th></th>
-            <th>Points</th>
-          </tr>
-        </thead>
-        <tbody>
-        `;
       standings = data.standings[0].table;
-      standings.forEach(function (data) {
-        standingsHTML += `
-              <tr>
-                <td>${data.position}</td>
-                <td><img alt="Team Logo" width="25" height="25" src="${data.team.crestUrl}" /><td>
-                <td>
-                  <a href="./team.html?id=${data.team.id}">
-                    ${data.team.name}
-                  </a>
-                </td>
-                <td>${data.points}</td>
-              </tr>`;
-      });
+      document.getElementById("standings").innerHTML = createTable(standings);
+      console.log("dari fetch");
 
-      standingsHTML += `</tbody></table>`;
-
-
-      // Sisipkan komponen card ke dalam elemen dengan id #content
-      document.getElementById("standings").innerHTML = standingsHTML;
-      console.log("fetched");
 
     })
     .catch(error);
@@ -114,20 +107,11 @@ function getTeamById() {
       caches.match(base_url_football + "teams/" + idParam).then(function (response) {
         if (response) {
           response.json().then(function (data) {
-            var teamHTML = `
-              <div class="card">
-                <div class="card-image waves-effect waves-block waves-light">
-                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
-                </div>
-                <div class="card-content">
-                  <span class="card-title">${data.name}</span>
-                  ${snarkdown(data.address)}
-                </div>
-              </div>
-            `;
-            // Sisipkan komponen card ke dalam elemen dengan id #content
-            document.getElementById("body-content").innerHTML = teamHTML;
+
+            document.getElementById("body-content").innerHTML = createCard(data);
+            console.log("card dari caches");
             resolve(data);
+
           });
         }
       });
@@ -139,22 +123,12 @@ function getTeamById() {
       .then(status)
       .then(json)
       .then(function (data) {
-        // Objek JavaScript dari response.json() masuk lewat variabel data.
-        // Menyusun komponen card artikel secara dinamis
-        var teamHTML = `
-              <div class="card">
-                <div class="card-image waves-effect waves-block waves-light">
-                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
-                </div>
-                <div class="card-content">
-                  <span class="card-title">${data.name}</span>
-                  ${snarkdown(data.address)}
-                </div>
-              </div>
-            `;
-        // Sisipkan komponen card ke dalam elemen dengan id #content
-        document.getElementById("body-content").innerHTML = teamHTML;
+
+        document.getElementById("body-content").innerHTML = createCard(data);
+        console.log("card dari fetch");
         resolve(data);
+
+
       });
   });
 
