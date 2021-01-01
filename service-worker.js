@@ -1,70 +1,67 @@
-const CACHE_NAME = "001";
-var urlsToCache = [
-    "/",
-    "/nav.html",
-    "/index.html",
-    "/team.html",
-    "/pages/home.html",
-    "/pages/favorite.html",
-    "/assets/vendor/materialize/css/materialize.min.css",
-    "/assets/vendor/materialize/js/materialize.min.js",
-    "/assets/vendor/jakearchibald/js/idb.js",
-    "/assets/js/nav.js",
-    "/assets/js/api.js",
-    "/assets/js/db.js",
-    "/service-worker-register.js",
-    "/favicon.ico",
-    "/manifest.json",
-    "https://fonts.googleapis.com/icon?family=Material+Icons",
-    "https://fonts.gstatic.com/s/materialicons/v55/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2",
-    "https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js",
-    "/assets/image/seriea-apple-icon-192x192.png",
-    "/assets/image/seriea-icon-400x400.png",
-    "/assets/image/seriea-icon-512x512.png"
-];
+importScripts('https://storage.googleapis.com/workbox-cdn/releases/3.6.3/workbox-sw.js');
 
-self.addEventListener("install", event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll(urlsToCache);
+if (workbox) {
+    workbox.precaching.precacheAndRoute([
+        { url: "/", revision: '1' },
+        { url: "/nav.html", revision: '1' },
+        { url: "/index.html", revision: '1' },
+        { url: "/team.html", revision: '1' },
+        { url: "/pages/home.html", revision: '1' },
+        { url: "/pages/favorite.html", revision: '1' },
+        { url: "/assets/vendor/materialize/css/materialize.min.css", revision: '1' },
+        { url: "/assets/vendor/materialize/js/materialize.min.js", revision: '1' },
+        { url: "/assets/vendor/jakearchibald/js/idb.js", revision: '1' },
+        { url: "/assets/js/nav.js", revision: '1' },
+        { url: "/assets/js/api.js", revision: '1' },
+        { url: "/assets/js/db.js", revision: '1' },
+        { url: "/service-worker-register.js", revision: '1' },
+        { url: "/favicon.ico", revision: '1' },
+        { url: "/manifest.json", revision: '1' },
+        { url: "https://fonts.googleapis.com/icon?family=Material+Icons", revision: '1' },
+        { url: "https://fonts.gstatic.com/s/materialicons/v55/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2", revision: '1' },
+        { url: "https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js", revision: '1' },
+        { url: "/assets/image/seriea-apple-icon-192x192.png", revision: '1' },
+        { url: "/assets/image/seriea-icon-400x400.png", revision: '1' },
+        { url: "/assets/image/seriea-icon-512x512.png", revision: '1' }
+    ]);
+
+    workbox.routing.registerRoute(
+        new RegExp('https://api.football-data.org/v2/'),
+        workbox.strategies.staleWhileRevalidate()
+    );
+
+    workbox.routing.registerRoute(
+        new RegExp('/pages/'),
+        workbox.strategies.staleWhileRevalidate({
+            cacheName: 'pages',
         })
     );
-});
 
-self.addEventListener("fetch", event => {
-    var base_url_football = "https://api.football-data.org/v2/";
-    if (event.request.url.indexOf(base_url_football) > -1) {
-        event.respondWith(
-            caches.open(CACHE_NAME).then(cache => {
-                return fetch(event.request).then(response => {
-                    cache.put(event.request.url, response.clone());
-                    return response;
-                })
-            })
-        );
-    } else {
-        event.respondWith(
-            caches.match(event.request, { ignoreSearch: true }).then(response => {
-                return response || fetch(event.request);
-            })
-        )
-    }
-});
-
-self.addEventListener("activate", event => {
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName != CACHE_NAME) {
-                        console.log("ServiceWorker: cache " + cacheName + " dihapus");
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
+    workbox.routing.registerRoute(
+        /.*(?:png|gif|jpg|jpeg|svg)$/,
+        workbox.strategies.cacheFirst({
+            cacheName: 'image',
+            plugins: [
+                new workbox.cacheableResponse.Plugin({
+                    statuses: [0, 200]
+                }),
+                new workbox.expiration.Plugin({
+                    maxEntries: 100,
+                    maxAgeSeconds: 30 * 24 * 60 * 60,
+                }),
+            ]
         })
     );
-});
+
+    workbox.routing.registerRoute(
+        /\.(?:js)$/,
+        workbox.strategies.cacheFirst({
+            cacheName: 'js',
+        })
+    );
+
+} else
+    console.log(`Workbox gagal dimuat`);
 
 self.addEventListener('push', event => {
     var body;
