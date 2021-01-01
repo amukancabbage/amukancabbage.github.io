@@ -18,7 +18,9 @@ var urlsToCache = [
     "https://fonts.googleapis.com/icon?family=Material+Icons",
     "https://fonts.gstatic.com/s/materialicons/v55/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2",
     "https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js",
-    "/assets/image/juve512x512.png"
+    "/assets/image/seriea-apple-icon-192x192.png",
+    "/assets/image/seriea-icon-400x400.png",
+    "/assets/image/seriea-icon-512x512.png"
 ];
 
 self.addEventListener("install", event => {

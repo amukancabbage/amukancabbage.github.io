@@ -9,9 +9,10 @@
     "gcm_sender_id": "1015820604484",
     "icons": [
         {
-            "src": "assets/image/juve512x512.png",
+            "src": "assets/image/seriea-icon-512x512.png",
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/png",
+            "purpose": "any maskable"
         }
     ]
 }
