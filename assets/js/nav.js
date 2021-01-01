@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", _ => {
 
     var elems = document.querySelectorAll(".sidenav");
     M.Sidenav.init(elems);
@@ -10,12 +10,12 @@ document.addEventListener("DOMContentLoaded", function () {
             if (this.readyState == 4) {
                 if (this.status != 200) return;
 
-                document.querySelectorAll(".topnav, .sidenav").forEach(function (elm) {
+                document.querySelectorAll(".topnav, .sidenav").forEach(elm => {
                     elm.innerHTML = xhttp.responseText;
                 });
 
-                document.querySelectorAll(".sidenav a, .topnav a").forEach(function (elm) {
-                    elm.addEventListener("click", function (event) {
+                document.querySelectorAll(".sidenav a, .topnav a").forEach(elm => {
+                    elm.addEventListener("click", event => {
 
                         var sidenav = document.querySelector(".sidenav");
                         M.Sidenav.getInstance(sidenav).close();

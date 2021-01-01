@@ -33,7 +33,7 @@ function createTable(data) {
             </thead>
             <tbody>`;
 
-  data.forEach(function (team) {
+  data.forEach(team => {
     tableHTML += `
                 <tr>
                 <td>${team.position}</td>
@@ -68,13 +68,16 @@ function createCard(data) {
 function getStandings() {
 
   if ('caches' in window) {
-    caches.match(base_url_football + "competitions/2019/standings").then(function (response) {
+    caches.match(base_url_football + "competitions/2019/standings").then(response => {
       if (response) {
-        response.json().then(function (data) {
+        response.json().then(data => {
 
           standings = data.standings[0].table;
-          document.getElementById("standings").innerHTML = createTable(standings);
-          console.log("dari caches");
+          document.addEventListener("DOMContentLoaded", _ => {
+
+            document.getElementById("standings").innerHTML = createTable(standings);
+            console.log("dari caches");
+          });
 
         })
       }
@@ -87,7 +90,7 @@ function getStandings() {
   })
     .then(status)
     .then(json)
-    .then(function (data) {
+    .then(data => {
 
       standings = data.standings[0].table;
       document.getElementById("standings").innerHTML = createTable(standings);
@@ -99,14 +102,14 @@ function getStandings() {
 }
 
 function getTeamById() {
-  return new Promise(function (resolve, reject) {
+  return new Promise((resolve, reject) => {
     // Ambil nilai query parameter (?id=)
     var urlParams = new URLSearchParams(window.location.search);
     var idParam = urlParams.get("id");
     if ("caches" in window) {
-      caches.match(base_url_football + "teams/" + idParam).then(function (response) {
+      caches.match(base_url_football + "teams/" + idParam).then(response => {
         if (response) {
-          response.json().then(function (data) {
+          response.json().then(data => {
 
             document.getElementById("body-content").innerHTML = createCard(data);
             console.log("card dari caches");
@@ -122,7 +125,7 @@ function getTeamById() {
     })
       .then(status)
       .then(json)
-      .then(function (data) {
+      .then(data => {
 
         document.getElementById("body-content").innerHTML = createCard(data);
         console.log("card dari fetch");
@@ -138,10 +141,10 @@ function getTeamById() {
 }
 
 function getSavedTeams() {
-  getAll().then(function (standings) {
-    console.log(standings);
+  getAll().then(standings => {
+
     let standingsHTML
-    if(standings.length > 0){
+    if (standings.length > 0) {
       standingsHTML = `<table class="striped">
         <thead>
           <tr>
@@ -151,7 +154,7 @@ function getSavedTeams() {
         </thead>
         <tbody>
         `;
-      standings.forEach(function (data) {
+      standings.forEach(data => {
         standingsHTML += `
               <tr>
                 <td><img alt="Team Logo" width="25" height="25" src="${data.crestUrl}" /><td>
@@ -164,10 +167,10 @@ function getSavedTeams() {
       });
 
       standingsHTML += `</tbody></table>`;
-    }else{
+    } else {
       standingsHTML = "<h5>Data masih kosong</h5>"
     }
-    
+
     // Sisipkan komponen card ke dalam elemen dengan id #body-content
     document.getElementById("body-content").innerHTML = standingsHTML;
   });
@@ -176,8 +179,8 @@ function getSavedTeams() {
 function getSavedTeamById() {
   var urlParams = new URLSearchParams(window.location.search);
   var idParam = urlParams.get("id");
-  return new Promise(function (resolve, reject) {
-    getById(idParam).then(function (team) {
+  return new Promise((resolve, reject) => {
+    getById(idParam).then(team => {
       teamHTML = '';
       var teamHTML = `
                 <div class="card">

@@ -1,4 +1,4 @@
-var dbPromised = idb.open("football", 1, function (upgradeDb) {
+var dbPromised = idb.open("football", 1, upgradeDb => {
     if (!upgradeDb.objectStoreNames.contains("teams")) {
         var teamObjectStore = upgradeDb.createObjectStore("teams", {
             keyPath: "id"
@@ -10,37 +10,37 @@ var dbPromised = idb.open("football", 1, function (upgradeDb) {
 
 
 function saveFavorite(team) {
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
         dbPromised
-            .then(function(db){
+            .then(db => {
                 tx = db.transaction("teams", "readwrite");
                 var store = tx.objectStore("teams");
                 return store.add(team);
             })
-            .then(function(){
+            .then(_ => {
                 resolve(tx.complete);
                 M.toast({ html: 'Tim berhasil di simpan.' })
             })
-            .catch (function (e) {
+            .catch(e => {
                 console.log(e);
                 M.toast({ html: 'Tim gagal di simpan.' })
             });
-        });
+    });
 }
 
-function deleteFavorite(team){
-    return new Promise(function (resolve, reject) {
+function deleteFavorite(team) {
+    return new Promise((resolve, reject) => {
         dbPromised
-            .then(function (db) {
+            .then(db => {
                 tx = db.transaction("teams", "readwrite");
                 var store = tx.objectStore("teams");
                 return store.delete(team.id);
             })
-            .then(function () {
+            .then(_ => {
                 resolve(tx.complete);
                 M.toast({ html: 'Tim berhasil dihapus.' })
             })
-            .catch(function (e) {
+            .catch(e => {
                 console.log(e);
                 M.toast({ html: 'Tim gagal dihapus.' })
             });
@@ -48,46 +48,46 @@ function deleteFavorite(team){
 }
 
 function getAll() {
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
         dbPromised
-            .then(function (db) {
+            .then(db => {
                 var tx = db.transaction("teams", "readonly");
                 var store = tx.objectStore("teams");
                 return store.getAll();
             })
-            .then(function (teams) {
+            .then(teams => {
                 resolve(teams);
             });
     });
 }
 
 function getById(id) {
-    return new Promise(function (resolve, reject) {
+    return new Promise((resolve, reject) => {
         dbPromised
-            .then(function (db) {
+            .then(db => {
                 var tx = db.transaction("teams", "readwrite");
                 var store = tx.objectStore("teams");
                 return store.get(parseInt(id));
             })
-            .then(function (teams) {
-                if(teams!=undefined){
+            .then(teams => {
+                if (teams != undefined) {
                     resolve(teams);
-                }else{
+                } else {
                     reject("kosong");
                 }
             })
     });
 }
 
-function cekAdaData(id){
-    return new Promise(function (resolve, reject) {
+function cekAdaData(id) {
+    return new Promise((resolve, reject) => {
         dbPromised
-            .then(function (db) {
+            .then(db => {
                 var tx = db.transaction("teams", "readwrite");
                 var store = tx.objectStore("teams");
                 return store.get(parseInt(id));
             })
-            .then(function (teams) {
+            .then(teams => {
                 if (teams != undefined) {
                     resolve(true);
                 } else {

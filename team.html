@@ -36,24 +36,9 @@
     <script src="assets/js/api.js"></script>
     <script src="assets/vendor/jakearchibald/js/idb.js"></script>
     <script src="assets/js/db.js"></script>
+    <script src="service-worker-register.js"></script>
     <script>
-        // REGISTER SERVICE WORKER
-        if ("serviceWorker" in navigator) {
-            window.addEventListener("load", function () {
-                navigator.serviceWorker
-                    .register("/service-worker.js")
-                    .then(function () {
-                        console.log("Pendaftaran ServiceWorker berhasil");
-                    })
-                    .catch(function () {
-                        console.log("Pendaftaran ServiceWorker gagal");
-                    });
-            });
-        } else {
-            console.log("ServiceWorker belum didukung browser ini.");
-        }
-
-        document.addEventListener("DOMContentLoaded", function () {
+        document.addEventListener("DOMContentLoaded", _ => {
 
             var urlParams = new URLSearchParams(window.location.search);
             var idParam = urlParams.get("id");
@@ -61,35 +46,34 @@
             var btnSave = document.getElementById("save");
             const STAR_ON = '<i class="large material-icons">star</i>'
             const STAR_OFF = '<i class="large material-icons">star_outline</i>'
-            cekAdaData(idParam).then(function(){
+            cekAdaData(idParam).then(_ => {
                 btnSave.innerHTML = STAR_ON;
                 item = getSavedTeamById();
                 console.log("Dari Favorite");
             })
-            .catch(function(){
-                btnSave.innerHTML = STAR_OFF;
-                item = getTeamById();
-                console.log("Dari Request");
-
-            });
-
-            btnSave.onclick = function () {
-                if(btnSave.innerHTML == STAR_ON){
+                .catch(_ => {
                     btnSave.innerHTML = STAR_OFF;
-                    item.then(function (team) {
+                    item = getTeamById();
+                    console.log("Dari Request");
+
+                });
+
+            btnSave.onclick = _ => {
+                if (btnSave.innerHTML == STAR_ON) {
+                    btnSave.innerHTML = STAR_OFF;
+                    item.then(team => {
                         deleteFavorite(team);
                     });
-                }else{
+                } else {
                     btnSave.innerHTML = STAR_ON
-                    item.then(function (team) {
+                    item.then(team => {
                         saveFavorite(team);
                     });
                 }
             }
-            
+
         });
     </script>
 </body>
 
 </html>
-

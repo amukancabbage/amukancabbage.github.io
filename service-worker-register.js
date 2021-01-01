@@ -1,12 +1,12 @@
 // REGISTER SERVICE WORKER
 if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
+    window.addEventListener("load", _ => {
         navigator.serviceWorker
             .register("/service-worker.js")
-            .then(function () {
+            .then(_ => {
                 console.log("Pendaftaran ServiceWorker berhasil");
             })
-            .catch(function () {
+            .catch(_ => {
                 console.log("Pendaftaran ServiceWorker gagal");
             });
     });
@@ -16,7 +16,7 @@ if ("serviceWorker" in navigator) {
 
 // Periksa fitur Notification API
 if ('Notification' in window) {
-    Notification.requestPermission().then(function (result) {
+    Notification.requestPermission().then(result => {
         if (result === "denied") {
             console.log("Fitur notifikasi tidak diijinkan.");
             return;
@@ -25,25 +25,25 @@ if ('Notification' in window) {
             return;
         }
 
-        navigator.serviceWorker.ready.then(() => {
-            console.log(navigator.serviceWorker.ready);
+        navigator.serviceWorker.ready.then(_ => {
+
             if (('PushManager' in window)) {
 
                 navigator.serviceWorker.ready.then(() => {
 
                     const vapidKeys = "BAUixQTEf3yhmS_A4UCT6Mjcl78WMfskYRyxHC939LFXghnLzKLAyFUiJ7SLw22ZoDIa7_OxivYWZkd1UgyPC_U";
-                    navigator.serviceWorker.getRegistration().then(function (registration) {
+                    navigator.serviceWorker.getRegistration().then(registration => {
 
                         registration.pushManager.subscribe({
                             userVisibleOnly: true,
                             applicationServerKey: urlBase64ToUint8Array(vapidKeys)
-                        }).then(function (subscribe) {
+                        }).then(subscribe => {
                             console.log('Berhasil melakukan subscribe dengan endpoint: ', subscribe.endpoint);
                             console.log('Berhasil melakukan subscribe dengan p256dh key: ', btoa(String.fromCharCode.apply(
                                 null, new Uint8Array(subscribe.getKey('p256dh')))));
                             console.log('Berhasil melakukan subscribe dengan auth key: ', btoa(String.fromCharCode.apply(
                                 null, new Uint8Array(subscribe.getKey('auth')))));
-                        }).catch(function (e) {
+                        }).catch(e => {
                             console.error('Tidak dapat melakukan subscribe ', e.message);
                         });
                     });
@@ -55,7 +55,7 @@ if ('Notification' in window) {
 
 // Meminta ijin menggunakan Notification API
 function requestPermission() {
-    Notification.requestPermission().then(function (result) {
+    Notification.requestPermission().then(result => {
         if (result === "denied") {
             console.log("Fitur notifikasi tidak diijinkan.");
             return;
@@ -74,7 +74,7 @@ function showNotifikasiSederhana() {
         'body': 'Ini adalah konten notifikasi. \nBisa menggunakan baris baru.',
     }
     if (Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(function (registration) {
+        navigator.serviceWorker.ready.then(registration => {
             registration.showNotification(title, options);
         });
     } else {
