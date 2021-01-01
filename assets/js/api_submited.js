@@ -1,5 +1,4 @@
-const base_url_football = "https://api.football-data.org/v2/";
-const TOKEN = "e0e06211977540d3b95c6e043d830a36";
+var base_url_football = "https://api.football-data.org/v2/";
 
 function status(response) {
   if (response.status !== 200) {
@@ -62,7 +61,7 @@ function getStandings() {
 
   fetch(base_url_football + "competitions/2019/standings", {
     method: "GET",
-    headers: { "X-Auth-Token": TOKEN }
+    headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
   })
     .then(status)
     .then(json)
@@ -134,7 +133,7 @@ function getTeamById() {
     }
     fetch(base_url_football + "teams/" + idParam, {
       method: "GET",
-      headers: { "X-Auth-Token": TOKEN }
+      headers: { "X-Auth-Token": "e0e06211977540d3b95c6e043d830a36" }
     })
       .then(status)
       .then(json)
