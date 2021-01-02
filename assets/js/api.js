@@ -104,8 +104,8 @@ function getStandings() {
 function getTeamById() {
   return new Promise((resolve, reject) => {
     // Ambil nilai query parameter (?id=)
-    var urlParams = new URLSearchParams(window.location.search);
-    var idParam = urlParams.get("id");
+    let urlParams = new URLSearchParams(window.location.search);
+    let idParam = urlParams.get("id");
     if ("caches" in window) {
       caches.match(base_url_football + "teams/" + idParam).then(response => {
         if (response) {
@@ -177,12 +177,12 @@ function getSavedTeams() {
 }
 
 function getSavedTeamById() {
-  var urlParams = new URLSearchParams(window.location.search);
-  var idParam = urlParams.get("id");
+  let urlParams = new URLSearchParams(window.location.search);
+  let idParam = urlParams.get("id");
   return new Promise((resolve, reject) => {
     getById(idParam).then(team => {
-      teamHTML = '';
-      var teamHTML = `
+      let teamHTML = '';
+      teamHTML = `
                 <div class="card">
                   <div class="card-image waves-effect waves-block waves-light">
                     <img alt="Team Logo" height="90" src="${team.crestUrl}" />

@@ -40,10 +40,10 @@
     <script>
         document.addEventListener("DOMContentLoaded", _ => {
 
-            var urlParams = new URLSearchParams(window.location.search);
-            var idParam = urlParams.get("id");
-            var isFromSaved = urlParams.get("saved");
-            var btnSave = document.getElementById("save");
+            let urlParams = new URLSearchParams(window.location.search);
+            let idParam = urlParams.get("id");
+            let isFromSaved = urlParams.get("saved");
+            let btnSave = document.getElementById("save");
             const STAR_ON = '<i class="large material-icons">star</i>'
             const STAR_OFF = '<i class="large material-icons">star_outline</i>'
             cekAdaData(idParam).then(_ => {

@@ -23,7 +23,9 @@ if (workbox) {
         { url: "/assets/image/seriea-apple-icon-192x192.png", revision: '1' },
         { url: "/assets/image/seriea-icon-400x400.png", revision: '1' },
         { url: "/assets/image/seriea-icon-512x512.png", revision: '1' }
-    ]);
+    ], {
+        ignoreUrlParametersMatching: [/.*/]
+    });
 
     workbox.routing.registerRoute(
         new RegExp('https://api.football-data.org/v2/'),
@@ -64,13 +66,13 @@ if (workbox) {
     console.log(`Workbox gagal dimuat`);
 
 self.addEventListener('push', event => {
-    var body;
+    let body;
     if (event.data) {
         body = event.data.text();
     } else {
         body = 'Push message no payload';
     }
-    var options = {
+    let options = {
         body: body,
         icon: 'img/notification.png',
         vibrate: [100, 50, 100],

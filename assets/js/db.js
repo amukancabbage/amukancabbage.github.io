@@ -1,6 +1,6 @@
-var dbPromised = idb.open("football", 1, upgradeDb => {
+let dbPromised = idb.open("football", 1, upgradeDb => {
     if (!upgradeDb.objectStoreNames.contains("teams")) {
-        var teamObjectStore = upgradeDb.createObjectStore("teams", {
+        let teamObjectStore = upgradeDb.createObjectStore("teams", {
             keyPath: "id"
         });
         teamObjectStore.createIndex("teams", "teams", { unique: false });
@@ -14,7 +14,7 @@ function saveFavorite(team) {
         dbPromised
             .then(db => {
                 tx = db.transaction("teams", "readwrite");
-                var store = tx.objectStore("teams");
+                let store = tx.objectStore("teams");
                 return store.add(team);
             })
             .then(_ => {
@@ -33,7 +33,7 @@ function deleteFavorite(team) {
         dbPromised
             .then(db => {
                 tx = db.transaction("teams", "readwrite");
-                var store = tx.objectStore("teams");
+                let store = tx.objectStore("teams");
                 return store.delete(team.id);
             })
             .then(_ => {
@@ -51,8 +51,8 @@ function getAll() {
     return new Promise((resolve, reject) => {
         dbPromised
             .then(db => {
-                var tx = db.transaction("teams", "readonly");
-                var store = tx.objectStore("teams");
+                let tx = db.transaction("teams", "readonly");
+                let store = tx.objectStore("teams");
                 return store.getAll();
             })
             .then(teams => {
@@ -65,8 +65,8 @@ function getById(id) {
     return new Promise((resolve, reject) => {
         dbPromised
             .then(db => {
-                var tx = db.transaction("teams", "readwrite");
-                var store = tx.objectStore("teams");
+                let tx = db.transaction("teams", "readwrite");
+                let store = tx.objectStore("teams");
                 return store.get(parseInt(id));
             })
             .then(teams => {
@@ -83,8 +83,8 @@ function cekAdaData(id) {
     return new Promise((resolve, reject) => {
         dbPromised
             .then(db => {
-                var tx = db.transaction("teams", "readwrite");
-                var store = tx.objectStore("teams");
+                let tx = db.transaction("teams", "readwrite");
+                let store = tx.objectStore("teams");
                 return store.get(parseInt(id));
             })
             .then(teams => {
