@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>Seri A Information</title>
-    <meta name="description" content="Seri A Information" />
+    <title>Aplikasi Presensi & Bekerja dari Rumah</title>
+    <meta name="description" content="Aplikasi Presensi & Bekerja dari Rumah" />
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://api.football-data.org">
     <link rel="preconnect" href="https://storage.googleapis.com">
@@ -12,34 +12,45 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#00897B" />
     <link rel="apple-touch-icon" href="/assets/image/seriea-apple-icon-192x192.png">
+    <style>
+        html,
+        body,
+        .login-box {
+            height: 100%;
+        }
+    </style>
 </head>
 
-<body>
-    <!-- Navigasi -->
-    <nav class="teal lighten-1" role="navigation">
-        <div class="nav-wrapper container">
-            <a href="#" class="brand-logo" id="logo-container">Seri A Info</a>
-            <a href="#" class="sidenav-trigger" data-target="nav-mobile">☰</a>
-
-            <ul class="topnav right hide-on-med-and-down"></ul>
-            <ul class="sidenav" id="nav-mobile"></ul>
+<body id="body-html">
+    <div class="valign-wrapper row login-box">
+        <div class="col s12">
+            <center>
+                <div class="preloader-wrapper big active">
+                    <div class="spinner-layer spinner-blue-only">
+                        <div class="circle-clipper left">
+                            <div class="circle"></div>
+                        </div>
+                        <div class="gap-patch">
+                            <div class="circle"></div>
+                        </div>
+                        <div class="circle-clipper right">
+                            <div class="circle"></div>
+                        </div>
+                    </div>
+                </div>
+            </center>
         </div>
-    </nav>
-    <!-- Akhir Navigasi -->
-    <div class="container" id="body-content"></div>
+    </div>
     <script src="assets/vendor/materialize/js/materialize.min.js"></script>
-    <script src="assets/js/api.js"></script>
-
-    <script src="assets/js/nav.js"></script>
-    <script src="assets/vendor/jakearchibald/js/idb.js"></script>
-    <script src="assets/js/db.js"></script>
+    <script src="assets/js/lib.js"></script>
+    <script src="assets/js/auth.js"></script>
 </body>
 
 </html>
 
 <script src="service-worker-register.js"></script>
-<script>
+<!-- <script>
     document.addEventListener("DOMContentLoaded", _ => {
-        getStandings();
+        // getStandings();
     });
-</script>
+</script> -->
