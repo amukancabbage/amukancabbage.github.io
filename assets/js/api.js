@@ -23,7 +23,7 @@ function createButton(data) {
     if (data.message == "Bisa absen") {
       console.log(data);
       buttonConfig = `
-        <a class="btn waves-effect waves-light" onclick="checkin(jwt)">Masuk</a>
+        <a class="btn waves-effect waves-light" onclick="click_checkin(jwt)">Masuk</a>
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Belum Masuk' })">Pulang</a>
       `;
     } else if (data.message == "Sudah checkout"){
@@ -35,7 +35,7 @@ function createButton(data) {
       buttonConfig = `
         <input type="hidden" value="`+ data.message + `" id="id_absensi" />
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Masuk' })">Masuk</a>
-        <a class="btn waves-effect waves-light" onclick="checkout(jwt)">Pulang</a>
+        <a class="btn waves-effect waves-light" onclick="click_checkout(jwt)">Pulang</a>
       `;
     }
   } else {
@@ -96,6 +96,17 @@ async function getCheckedInStatus(jwt) {
     });
 }
 
+async function click_checkin(jwt){
+  const result_checkin = await checkin(jwt);
+  
+  await getCheckedInStatus({jwt:jwt})
+}
+
+async function click_checkout(jwt) {
+  await checkout(jwt);
+  await getCheckedInStatus({ jwt: jwt })
+}
+
 async function checkin(jwt) {
   let checkinUrl = "https://hadir.lldikti11.or.id/api/absensi/checkin.php";
   var today = new Date();
@@ -112,7 +123,6 @@ async function checkin(jwt) {
 
   document.getElementById("checkedInStatus").innerHTML = createLoading();
 
-
   const requestOptions = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -121,13 +131,16 @@ async function checkin(jwt) {
   const response = await fetch(checkinUrl, requestOptions)
     .then(async response => {
       const data = await response.json();
-      console.log(jwt);
-
+      if (data.result)
+        M.toast({ html: 'Check in berhasil' })
+      else
+        M.toast({ html: 'Check in gagal' })
+      return Promise.resolve(data);
     })
     .catch(error => {
-      console.log(error);
-      this.errorMessage = error;
-      console.error('There was an error!', error);
+      M.toast({ html: 'Somting wong' })
+      // console.error('There was an error!', error);
+      return Promise.reject(data);
     });
 }
 
@@ -158,8 +171,10 @@ async function checkout(jwt) {
   const response = await fetch(checkinUrl, requestOptions)
     .then(async response => {
       const data = await response.json();
-      console.log(data);
-
+      if (data.result)
+        M.toast({ html: 'Check out berhasil' })
+      else
+        M.toast({ html: 'Check out gagal' })
     })
     .catch(error => {
       console.log(error);
