@@ -1,6 +1,6 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/3.6.3/workbox-sw.js');
 
-if (workbox) {
+if (!workbox) {
     workbox.precaching.precacheAndRoute([
         { url: "/", revision: '2' },
         { url: "/nav.html", revision: '2' },

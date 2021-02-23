@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", _ => {
                 let content = document.querySelector("#body-content");
 
                 if (page === "home") {
-                    getStandings();
+                    // getStandings();
                 } else if (page === "favorite") {
                     getSavedTeams();
                 }

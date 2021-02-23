@@ -1,6 +1,3 @@
-const base_url_football = "https://api.football-data.org/v2/";
-const TOKEN = "e0e06211977540d3b95c6e043d830a36";
-
 function status(response) {
   if (response.status !== 200) {
     console.log("Error : " + response.status);
@@ -19,183 +16,200 @@ function error(error) {
   console.log("Error : " + error);
 }
 
-function createTable(data) {
+function createButton(data) {
 
-  let tableHTML = `
-          <table class="striped">
-            <thead>
-              <tr>
-                <th>Pos</th>
-                <th colspan="2">Team</th>
-                <th></th>
-                <th>Points</th>
-              </tr>
-            </thead>
-            <tbody>`;
-
-  data.forEach(team => {
-    tableHTML += `
-                <tr>
-                <td>${team.position}</td>
-                <td><img alt="Team Logo" width="25" height="25" src="${team.team.crestUrl}" /><td>
-                <td>
-                  <a href="./team.html?id=${team.team.id}">
-                    ${team.team.name}
-                  </a>
-                </td>
-                <td>${team.points}</td>
-              </tr>`;
-  });
-
-  tableHTML += `</tbody></table>`;
-  return tableHTML;
-}
-
-function createCard(data) {
-  return teamHTML = `
-              <div class="card">
-                <div class="card-image waves-effect waves-block waves-light">
-                  <img alt="Team Logo" height="90" src="${data.crestUrl}" />
-                </div>
-                <div class="card-content">
-                  <span class="card-title">${data.name}</span>
-                  ${snarkdown(data.address)}
-                </div>
-              </div>
-            `;
-}
-
-function getStandings() {
-
-  if ('caches' in window) {
-    caches.match(base_url_football + "competitions/2019/standings").then(response => {
-      if (response) {
-        response.json().then(data => {
-
-          standings = data.standings[0].table;
-          document.addEventListener("DOMContentLoaded", _ => {
-
-            document.getElementById("standings").innerHTML = createTable(standings);
-            console.log("dari caches");
-          });
-
-        })
-      }
-    })
+  let buttonConfig = '';
+  if (data.result) {
+    if (data.message == "Bisa absen") {
+      console.log(data);
+      buttonConfig = `
+        <a class="btn waves-effect waves-light" onclick="checkin(jwt)">Masuk</a>
+        <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Belum Masuk' })">Pulang</a>
+      `;
+    } else if (data.message == "Sudah checkout"){
+      buttonConfig = `
+        <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Pulang' })">Masuk</a>
+        <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Pulang' })">Pulang</a>
+      `;
+    } else {
+      buttonConfig = `
+        <input type="hidden" value="`+ data.message + `" id="id_absensi" />
+        <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Masuk' })">Masuk</a>
+        <a class="btn waves-effect waves-light" onclick="checkout(jwt)">Pulang</a>
+      `;
+    }
+  } else {
+    buttonConfig = `
+      <p>`+ data.message + `</p>`;
   }
 
-  fetch(base_url_football + "competitions/2019/standings", {
-    method: "GET",
-    headers: { "X-Auth-Token": TOKEN }
-  })
-    .then(status)
-    .then(json)
-    .then(data => {
 
-      standings = data.standings[0].table;
-      document.getElementById("standings").innerHTML = createTable(standings);
-      console.log("dari fetch");
+  return buttonConfig;
+}
+
+function createForm(data) {
 
 
+  let formConfig = '';
+  if (data.message == "Access granted.") {
+    formConfig = `
+        <input type="hidden" value="`+ data.data.id + `" id="idPengguna"/>
+      `;
+  } else {
+    formConfig = `
+        <input type="hidden" value="" />
+      `;
+  }
+
+
+
+  return formConfig;
+}
+
+function createLoading() {
+  let loading = `
+  <div class="progress">
+    <div class="indeterminate"></div>
+  </div>`;
+  return loading;
+}
+
+async function getCheckedInStatus(jwt) {
+  let loginUrl = "https://hadir.lldikti11.or.id/api/absensi/get_valid_day.php";
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(jwt)
+  };
+  const response = await fetch(loginUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      console.log(data);
+      document.getElementById("checkedInStatus").innerHTML = createButton(data);
+
+      return Promise.resolve(data);
     })
-    .catch(error);
-}
-
-function getTeamById() {
-  return new Promise((resolve, reject) => {
-    // Ambil nilai query parameter (?id=)
-    let urlParams = new URLSearchParams(window.location.search);
-    let idParam = urlParams.get("id");
-    if ("caches" in window) {
-      caches.match(base_url_football + "teams/" + idParam).then(response => {
-        if (response) {
-          response.json().then(data => {
-
-            document.getElementById("body-content").innerHTML = createCard(data);
-            console.log("card dari caches");
-            resolve(data);
-
-          });
-        }
-      });
-    }
-    fetch(base_url_football + "teams/" + idParam, {
-      method: "GET",
-      headers: { "X-Auth-Token": TOKEN }
-    })
-      .then(status)
-      .then(json)
-      .then(data => {
-
-        document.getElementById("body-content").innerHTML = createCard(data);
-        console.log("card dari fetch");
-        resolve(data);
-
-
-      });
-  });
-
-
-
-
-}
-
-function getSavedTeams() {
-  getAll().then(standings => {
-
-    let standingsHTML
-    if (standings.length > 0) {
-      standingsHTML = `<table class="striped">
-        <thead>
-          <tr>
-            <th colspan="2">Team</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-        `;
-      standings.forEach(data => {
-        standingsHTML += `
-              <tr>
-                <td><img alt="Team Logo" width="25" height="25" src="${data.crestUrl}" /><td>
-                <td>
-                  <a href="./team.html?id=${data.id}&saved=true">
-                    ${data.name}
-                  </a>
-                </td>
-              </tr>`;
-      });
-
-      standingsHTML += `</tbody></table>`;
-    } else {
-      standingsHTML = "<h5>Data masih kosong</h5>"
-    }
-
-    // Sisipkan komponen card ke dalam elemen dengan id #body-content
-    document.getElementById("body-content").innerHTML = standingsHTML;
-  });
-}
-
-function getSavedTeamById() {
-  let urlParams = new URLSearchParams(window.location.search);
-  let idParam = urlParams.get("id");
-  return new Promise((resolve, reject) => {
-    getById(idParam).then(team => {
-      let teamHTML = '';
-      teamHTML = `
-                <div class="card">
-                  <div class="card-image waves-effect waves-block waves-light">
-                    <img alt="Team Logo" height="90" src="${team.crestUrl}" />
-                  </div>
-                  <div class="card-content">
-                    <span class="card-title">${team.name}</span>
-                    ${snarkdown(team.address)}
-                  </div>
-                </div>
-              `;
-      // Sisipkan komponen card ke dalam elemen dengan id #content
-      document.getElementById("body-content").innerHTML = teamHTML;
-      resolve(team);
+    .catch(error => {
+      console.log(error);
+      return Promise.reject(new Error(error));
     });
-  });
+}
+
+async function checkin(jwt) {
+  let checkinUrl = "https://hadir.lldikti11.or.id/api/absensi/checkin.php";
+  var today = new Date();
+  var checkin = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  let ipIn = document.getElementById("inputIP").value;
+  let idPengguna = document.getElementById("idPengguna").value;
+
+  let sendPost = {
+    jwt: jwt,
+    checkin: checkin,
+    ipIn: ipIn,
+    idPengguna: idPengguna
+  };
+
+  document.getElementById("checkedInStatus").innerHTML = createLoading();
+
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sendPost)
+  };
+  const response = await fetch(checkinUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      console.log(jwt);
+
+    })
+    .catch(error => {
+      console.log(error);
+      this.errorMessage = error;
+      console.error('There was an error!', error);
+    });
+}
+
+async function checkout(jwt) {
+  let checkinUrl = "https://hadir.lldikti11.or.id/api/absensi/checkout.php";
+
+
+  var today = new Date();
+  var checkout = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+  let ipOut = document.getElementById("inputIP").value;
+  let id = document.getElementById("id_absensi").value;
+
+  let sendPost = {
+    jwt:jwt,
+    checkout:checkout,
+    ipOut:ipOut,
+    id:id
+  };
+
+  document.getElementById("checkedInStatus").innerHTML = createLoading();
+
+  console.log(sendPost);
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sendPost)
+  };
+  const response = await fetch(checkinUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      console.log(data);
+
+    })
+    .catch(error => {
+      console.log(error);
+      this.errorMessage = error;
+      console.error('There was an error!', error);
+    });
+}
+
+async function getValidateToken(jwt) {
+
+  let validateUrl = "https://singkron.lldikti11.or.id/api/pengguna/validate-token.php";
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(jwt)
+  };
+  const response = await fetch(validateUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      console.log(data);
+      document.getElementById("inputForm").innerHTML = createForm(data);
+    })
+    .catch(error => {
+      console.log(error);
+      this.errorMessage = error;
+      console.error('There was an error!', error);
+    });
+
+}
+
+async function getIp() {
+
+  let validateUrl = "https://jsonip.com/";
+
+  const requestOptions = {
+    method: "GET"
+  };
+  const response = await fetch(validateUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      console.log(data);
+      document.getElementById("inputIp").innerHTML = `
+        <input type="hidden" value="`+ data.ip + `" id="inputIP"/>
+      `
+    })
+    .catch(error => {
+      console.log(error);
+      this.errorMessage = error;
+      console.error('There was an error!', error);
+    });
+
 }

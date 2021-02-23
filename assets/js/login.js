@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", _ => {
                     return Promise.reject(error);
                 }else{
                     if (data.message == "Successful login."){
-                        setCookie("jwt", data);
+                        setCookie("jwt", data.jwt);
                         window.location.href = "index.html";
                     }else{
                         M.toast({ html: data.message })

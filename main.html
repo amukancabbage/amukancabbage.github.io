@@ -1,28 +1,51 @@
-<!-- Navigasi -->
-<nav class="teal lighten-1" role="navigation">
-    <div class="nav-wrapper container">
-        <a href="#" class="brand-logo" id="logo-container">Seri A Info</a>
-        <a href="#" class="sidenav-trigger" data-target="nav-mobile">☰</a>
+<!DOCTYPE html>
+<html lang="en">
 
-        <ul class="topnav right hide-on-med-and-down"></ul>
-        <ul class="sidenav" id="nav-mobile"></ul>
-    </div>
-</nav>
-<!-- Akhir Navigasi -->
-<div class="container" id="body-content"></div>
-<script src="assets/vendor/materialize/js/materialize.min.js"></script>
-<script src="assets/js/api.js"></script>
+<head>
+    <meta charset="UTF-8" />
+    <title>Aplikasi Presensi & Bekerja dari Rumah</title>
+    <meta name="description" content="Aplikasi Presensi & Bekerja dari Rumah" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://api.football-data.org">
+    <link rel="preconnect" href="https://storage.googleapis.com">
+    <link rel="stylesheet" href="assets/vendor/materialize/css/materialize.min.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#00897B" />
+    <link rel="apple-touch-icon" href="/assets/image/seriea-apple-icon-192x192.png">
+</head>
 
-<script src="assets/js/nav.js"></script>
-<script src="assets/vendor/jakearchibald/js/idb.js"></script>
-<script src="assets/js/db.js"></script>
-<!-- </body>
+<body id="body-html">
+    <!-- Navigasi -->
+    <nav class="teal lighten-1" role="navigation">
+        <div class="nav-wrapper container">
+            <a href="#" class="brand-logo" id="logo-container">AksiBerkah</a>
+            <a href="#" class="sidenav-trigger" data-target="nav-mobile">☰</a>
+
+            <ul class="topnav right hide-on-med-and-down"></ul>
+            <ul class="sidenav" id="nav-mobile"></ul>
+        </div>
+    </nav>
+    <!-- Akhir Navigasi -->
+    <div class="container" id="body-content"></div>
+    <script src="assets/vendor/materialize/js/materialize.min.js"></script>
+    <script src="assets/js/lib.js"></script>
+    <script src="assets/js/api.js"></script>
+
+    <script src="assets/js/nav.js"></script>
+</body>
 
 </html>
 
 <script src="service-worker-register.js"></script>
 <script>
+    let jwt = getCookie('jwt');
+
     document.addEventListener("DOMContentLoaded", _ => {
-        getStandings();
+        console.log(jwt);
+        getCheckedInStatus({ jwt: jwt });
+        getValidateToken({ jwt: jwt });
+        getIp();
     });
-</script> -->
+
+    
+</script>
