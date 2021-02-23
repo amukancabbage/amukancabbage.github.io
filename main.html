@@ -41,7 +41,6 @@
     let jwt = getCookie('jwt');
 
     document.addEventListener("DOMContentLoaded", _ => {
-        console.log(jwt);
         getCheckedInStatus({ jwt: jwt });
         getValidateToken({ jwt: jwt });
         getIp();

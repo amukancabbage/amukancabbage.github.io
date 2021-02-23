@@ -41,7 +41,10 @@ document.addEventListener("DOMContentLoaded", _ => {
                 let content = document.querySelector("#body-content");
 
                 if (page === "home") {
-                    // getStandings();
+                    let jwt = getCookie('jwt');
+                    getCheckedInStatus({ jwt: jwt });
+                    getValidateToken({ jwt: jwt });
+                    getIp();
                 } else if (page === "favorite") {
                     getSavedTeams();
                 }

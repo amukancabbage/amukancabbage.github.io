@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", _ => {
 
     let login_form = document.getElementById("login");
+    setCookie("jwt", "");
+
 
     login_form.onsubmit = _ => {
         let username = document.getElementById("username").value;
