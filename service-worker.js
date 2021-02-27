@@ -23,7 +23,7 @@ if (!workbox) {
         { url: "https://fonts.googleapis.com/icon?family=Material+Icons", revision: '2' },
         { url: "https://fonts.gstatic.com/s/materialicons/v55/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2", revision: '2' },
         { url: "https://unpkg.com/snarkdown@1.0.2/dist/snarkdown.umd.js", revision: '2' },
-        { url: "/assets/image/seriea-apple-icon-192x192.png", revision: '2' },
+        { url: "/assets/image/dikbud-192x192.png", revision: '2' },
         { url: "/assets/image/seriea-icon-400x400.png", revision: '2' },
         { url: "/assets/image/seriea-icon-512x512.png", revision: '2' }
     ], {
