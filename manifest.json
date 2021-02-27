@@ -1,7 +1,7 @@
 {
-    "name": "PWA Futball App",
-    "short_name": "Futball App",
-    "description": "Submission Dicoding Football App",
+    "name": "Aplikasi Presensi & Bekerja dari Rumah",
+    "short_name": "Aksi Berkah",
+    "description": "Aplikasi Presensi dan Bekerja dari Rumah",
     "start_url": "/index.html",
     "display": "standalone",
     "background_color": "#ffffff",
