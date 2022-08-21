@@ -18,7 +18,7 @@
     <!-- Navigasi -->
     <nav class="teal lighten-1" role="navigation">
         <div class="nav-wrapper container">
-            <a href="#" class="brand-logo" id="logo-container">AksiBerkah</a>
+            <a href="#" class="brand-logo" id="logo-container">Aksi Berkah</a>
             <a href="#" class="sidenav-trigger" data-target="nav-mobile">☰</a>
 
             <ul class="topnav right hide-on-med-and-down"></ul>
@@ -37,14 +37,3 @@
 </html>
 
 <script src="service-worker-register.js"></script>
-<script>
-    let jwt = getCookie('jwt');
-
-    document.addEventListener("DOMContentLoaded", _ => {
-        getCheckedInStatus({ jwt: jwt });
-        getValidateToken({ jwt: jwt });
-        getIp();
-    });
-
-    
-</script>

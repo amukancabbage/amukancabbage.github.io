@@ -23,7 +23,7 @@ function createButton(data) {
     if (data.message == "Bisa absen") {
       console.log(data);
       buttonConfig = `
-        <a class="btn waves-effect waves-light" onclick="click_checkin(jwt)">Masuk</a>
+        <a class="btn waves-effect waves-light" onclick="click_checkin()">Masuk</a>
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Belum Masuk' })">Pulang</a>
       `;
     } else if (data.message == "Sudah checkout"){
@@ -35,7 +35,7 @@ function createButton(data) {
       buttonConfig = `
         <input type="hidden" value="`+ data.message + `" id="id_absensi" />
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Masuk' })">Masuk</a>
-        <a class="btn waves-effect waves-light" onclick="click_checkout(jwt)">Pulang</a>
+        <a class="btn waves-effect waves-light" onclick="click_checkout()">Pulang</a>
       `;
     }
   } else {
@@ -85,7 +85,7 @@ async function getCheckedInStatus(jwt) {
   const response = await fetch(loginUrl, requestOptions)
     .then(async response => {
       const data = await response.json();
-      console.log(data);
+      // console.log(data);
       document.getElementById("checkedInStatus").innerHTML = createButton(data);
 
       return Promise.resolve(data);
@@ -96,15 +96,24 @@ async function getCheckedInStatus(jwt) {
     });
 }
 
-async function click_checkin(jwt){
-  const result_checkin = await checkin(jwt);
-  
-  await getCheckedInStatus({jwt:jwt})
+async function click_checkin(){
+  const data = loadDataFromStorage();
+  if (data == null) {
+    M.toast({ html: 'Sam Ting Wong Che Kin' })
+  } else {
+    const result_checkin = await checkin(data.aksiberkah_jwt);
+  }
+  await getCheckedInStatus({jwt:data.aksiberkah_jwt})
 }
 
-async function click_checkout(jwt) {
-  await checkout(jwt);
-  await getCheckedInStatus({ jwt: jwt })
+async function click_checkout() {
+  const data = loadDataFromStorage();
+  if (data == null) {
+    M.toast({ html: 'Sam Ting Wong Che Kot' })
+  } else {
+    await checkout(data.aksiberkah_jwt);
+    await getCheckedInStatus({ jwt: data.aksiberkah_jwt })
+  }
 }
 
 async function checkin(jwt) {
@@ -195,7 +204,7 @@ async function getValidateToken(jwt) {
   const response = await fetch(validateUrl, requestOptions)
     .then(async response => {
       const data = await response.json();
-      console.log(data);
+      // console.log(data);
       document.getElementById("inputForm").innerHTML = createForm(data);
     })
     .catch(error => {

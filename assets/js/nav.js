@@ -39,15 +39,20 @@ document.addEventListener("DOMContentLoaded", _ => {
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4) {
                 let content = document.querySelector("#body-content");
-
-                if (page === "home") {
-                    let jwt = getCookie('jwt');
-                    getCheckedInStatus({ jwt: jwt });
-                    getValidateToken({ jwt: jwt });
-                    getIp();
-                } else if (page === "favorite") {
-                    getSavedTeams();
+                const data = loadDataFromStorage();
+                if (data == null) {
+                    window.location.href = "login.html";
+                } else {
+                    if (page === "home") {
+                        getCheckedInStatus({ jwt: data.aksiberkah_jwt });
+                        getValidateToken({ jwt: data.aksiberkah_jwt });
+                        getIp();
+                    } else if (page === "favorite") {
+                        getSavedTeams();
+                    }
                 }
+
+           
 
                 if (this.status == 200) {
                     content.innerHTML = xhttp.responseText;

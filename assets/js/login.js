@@ -3,51 +3,37 @@ document.addEventListener("DOMContentLoaded", _ => {
     let login_form = document.getElementById("login");
     setCookie("jwt", "");
 
-
     login_form.onsubmit = _ => {
-        let username = document.getElementById("username").value;
-        let password = document.getElementById("password").value;
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
 
         var obj = { username: username, password: password };
-        var form_data = JSON.stringify(obj);
-        console.log(obj);
-        const data = created(obj);
+
+        loginRequest(obj);
 
         return false;
     }
 
-    async function created(obj) {
-        let loginUrl = "https://singkron.lldikti11.or.id/api/pengguna/login.php";
+    const loginRequest = async (loginObject) => {
+        try {
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(loginObject)
+            };
 
-        const requestOptions = {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(obj)
-        };
-        const response = await fetch(loginUrl, requestOptions)
-            .then(async response => {
-                const data = await response.json();
-                console.log(data);
-
-                if (!response.ok) {
-                    const error = (data && data.message) || response.status;
-                    return Promise.reject(error);
-                }else{
-                    if (data.message == "Successful login."){
-                        setCookie("jwt", data.jwt);
-                        window.location.href = "index.html";
-                    }else{
-                        M.toast({ html: data.message })
-                    }
-                    
-                }
-
-                this.postId = data.id;
-            })
-            .catch(error => {
-                this.errorMessage = error;
-                console.error('There was an error!', error);
-            });
+            const response = await fetch(`https://singkron.lldikti11.or.id/api/pengguna/login.php`, options)
+            const responseJson = await response.json();
+            M.toast({ html: responseJson.message })
+            if (responseJson.message == "Successful login.") {
+                let saved = { aksiberkah_jwt: responseJson.jwt }
+                saveData(saved)
+                window.location.href = "main.html";
+            }
+        } catch (error) {
+            console.log(error);
+        }
     }
-
 });
