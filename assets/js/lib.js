@@ -51,7 +51,11 @@ function loadDataFromStorage() {
     return data;
 }
 
-function checkToken(){
+function removeData() {
+    localStorage.removeItem(STORAGE_KEY);
+}
+
+function checkToken() {
     if (loadDataFromStorage() !== null) {
         window.location.href = "main.html";
     } else {

@@ -49,10 +49,16 @@ document.addEventListener("DOMContentLoaded", _ => {
                         getIp();
                     } else if (page === "favorite") {
                         getSavedTeams();
+                    } else if (page === "logout") {
+                        if(confirm("Yakin logout?")){
+                            removeData();
+                            window.location.href = "login.html";
+                        }
+                        window.location.href = "main.html";
                     }
                 }
 
-           
+
 
                 if (this.status == 200) {
                     content.innerHTML = xhttp.responseText;
