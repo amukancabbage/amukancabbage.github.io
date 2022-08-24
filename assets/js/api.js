@@ -215,6 +215,29 @@ async function getValidateToken(jwt) {
 
 }
 
+async function getBulanan(jwt) {
+
+  let validateUrl = "https://singkron.lldikti11.or.id/api/pengguna/validate-token.php";
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(jwt)
+  };
+  const response = await fetch(validateUrl, requestOptions)
+    .then(async response => {
+      const data = await response.json();
+      // console.log(data);
+      document.getElementById("inputForm").innerHTML = createForm(data);
+    })
+    .catch(error => {
+      console.log(error);
+      this.errorMessage = error;
+      console.error('There was an error!', error);
+    });
+
+}
+
 async function getIp() {
 
   let validateUrl = "https://jsonip.com/";
