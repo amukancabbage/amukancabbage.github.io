@@ -49,8 +49,10 @@ document.addEventListener("DOMContentLoaded", _ => {
                         // getIp();
                     } else if (page === "favorite") {
                         getSavedTeams();
+                    } else if (page === "bulanan") {
+                        getBulanan({ jwt: data.aksiberkah_jwt });
                     } else if (page === "logout") {
-                        if(confirm("Yakin logout?")){
+                        if (confirm("Yakin logout?")) {
                             removeData();
                             window.location.href = "login.html";
                         }

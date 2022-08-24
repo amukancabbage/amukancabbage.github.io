@@ -36,19 +36,19 @@ if (workbox) {
 
     workbox.routing.registerRoute(
         new RegExp('https://amukancabbage.github.io/'),
-        workbox.strategies.staleWhileRevalidate()
+        workbox.strategies.networkFirst()
     );
 
     workbox.routing.registerRoute(
         new RegExp('/pages/'),
-        workbox.strategies.staleWhileRevalidate({
+        workbox.strategies.networkFirst({
             cacheName: 'pages',
         })
     );
 
     workbox.routing.registerRoute(
         /.*(?:png|gif|jpg|jpeg|svg)$/,
-        workbox.strategies.cacheFirst({
+        workbox.strategies.networkFirst({
             cacheName: 'image',
             plugins: [
                 new workbox.cacheableResponse.Plugin({
@@ -64,7 +64,7 @@ if (workbox) {
 
     workbox.routing.registerRoute(
         /\.(?:js)$/,
-        workbox.strategies.cacheFirst({
+        workbox.strategies.networkFirst({
             cacheName: 'js',
         })
     );

@@ -26,7 +26,7 @@ function createButton(data) {
         <a class="btn waves-effect waves-light" onclick="click_checkin()">Masuk</a>
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Belum Masuk' })">Pulang</a>
       `;
-    } else if (data.message == "Sudah checkout"){
+    } else if (data.message == "Sudah checkout") {
       buttonConfig = `
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Pulang' })">Masuk</a>
         <a class="btn waves-effect waves-light blue-grey darken-1" onclick="M.toast({ html: 'Sudah Pulang' })">Pulang</a>
@@ -96,14 +96,14 @@ async function getCheckedInStatus(jwt) {
     });
 }
 
-async function click_checkin(){
+async function click_checkin() {
   const data = loadDataFromStorage();
   if (data == null) {
     M.toast({ html: 'Sam Ting Wong Che Kin' })
   } else {
     const result_checkin = await checkin(data.aksiberkah_jwt);
   }
-  await getCheckedInStatus({jwt:data.aksiberkah_jwt})
+  await getCheckedInStatus({ jwt: data.aksiberkah_jwt })
 }
 
 async function click_checkout() {
@@ -163,10 +163,10 @@ async function checkout(jwt) {
   let id = document.getElementById("id_absensi").value;
 
   let sendPost = {
-    jwt:jwt,
-    checkout:checkout,
-    ipOut:ipOut,
-    id:id
+    jwt: jwt,
+    checkout: checkout,
+    ipOut: ipOut,
+    id: id
   };
 
   document.getElementById("checkedInStatus").innerHTML = createLoading();
@@ -217,18 +217,22 @@ async function getValidateToken(jwt) {
 
 async function getBulanan(jwt) {
 
-  let validateUrl = "https://singkron.lldikti11.or.id/api/pengguna/validate-token.php";
+  let url = "https://hadir.lldikti11.or.id/api/absensi/read_bulan.php";
 
   const requestOptions = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(jwt)
   };
-  const response = await fetch(validateUrl, requestOptions)
+  const response = await fetch(url, requestOptions)
     .then(async response => {
       const data = await response.json();
-      // console.log(data);
-      document.getElementById("inputForm").innerHTML = createForm(data);
+      console.log(data);
+      let list = "";
+      data.records.forEach(datum => {
+        list += createBulananCard(datum.checkin, datum.checkout, datum.hari, datum.tanggal, datum.opsi);
+      });
+      document.getElementById("bulanan_list").innerHTML = list;
     })
     .catch(error => {
       console.log(error);
@@ -237,6 +241,26 @@ async function getBulanan(jwt) {
     });
 
 }
+
+function createBulananCard(checkin, checkout, hari, tanggal, opsi) {
+
+  let jam = checkin === null && checkout === null ? `<p>${opsi}</p>` : `<p>Checkin: ${checkin}</p><p>Checkout: ${checkout}</p>`;
+
+  let warna = jam === "<p>Libur</p>" ? " red" : "";
+
+  warna = jam === "<p>Tidak Hadir</p>" ? " yellow" : warna;
+
+  let card = `<div class="card${warna}">
+            <div class="card-content">
+                <span class="card-title">${tanggal}</span>
+                <p>Hari: ${hari}</p>
+                ${jam}
+            </div>
+        </div>`;
+
+  return card;
+}
+
 
 async function getIp() {
 
