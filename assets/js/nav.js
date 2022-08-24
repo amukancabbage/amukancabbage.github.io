@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", _ => {
                     if (page === "home") {
                         getCheckedInStatus({ jwt: data.aksiberkah_jwt });
                         getValidateToken({ jwt: data.aksiberkah_jwt });
-                        getIp();
+                        // getIp();
                     } else if (page === "favorite") {
                         getSavedTeams();
                     } else if (page === "logout") {
