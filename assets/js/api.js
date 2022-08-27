@@ -101,7 +101,10 @@ async function click_checkin() {
   if (data == null) {
     M.toast({ html: 'Sam Ting Wong Che Kin' })
   } else {
-    const result_checkin = await checkin(data.aksiberkah_jwt);
+    await checkin(data.aksiberkah_jwt)
+      .catch(error => {
+        M.toast({ html: error.message });
+      });
   }
   await getCheckedInStatus({ jwt: data.aksiberkah_jwt })
 }
@@ -120,7 +123,7 @@ async function checkin(jwt) {
   let checkinUrl = "https://hadir.lldikti11.or.id/api/absensi/checkin.php";
   var today = new Date();
   var checkin = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-  let ipIn = document.getElementById("inputIP").value;
+  let ipIn = 0;
   let idPengguna = document.getElementById("idPengguna").value;
 
   let sendPost = {
@@ -159,7 +162,7 @@ async function checkout(jwt) {
 
   var today = new Date();
   var checkout = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
-  let ipOut = document.getElementById("inputIP").value;
+  let ipOut = 0;
   let id = document.getElementById("id_absensi").value;
 
   let sendPost = {
