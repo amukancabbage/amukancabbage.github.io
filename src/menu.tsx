@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
 import DosenPage from './pages/DosenPage';
 import KategoriPenelitianPage from './pages/KategoriPenelitianPage';
+import KategoriPengabdianPage from './pages/KategoriPengabdianPage';
 import PenelitianPage from './pages/PenelitianPage';
+import PengabdianPage from './pages/PengabdianPage';
 import PenggunaPage from './pages/PenggunaPage';
 import ProdiPage from './pages/ProdiPage';
 import SubkategoriPenelitianPage from './pages/SubkategoriPenelitianPage';
+import SubkategoriPengabdianPage from './pages/SubkategoriPengabdianPage';
 import type { Role } from './types';
 
 export type MenuItem = { path: string; label: string; element: ReactNode; roles: Role[] };
@@ -22,6 +25,14 @@ export const menu: MenuGroup[] = [
       { path: '/penelitian', label: 'Data Penelitian', element: <PenelitianPage />, roles: semua },
       { path: '/kategori-penelitian', label: 'Kategori', element: <KategoriPenelitianPage />, roles: admin },
       { path: '/subkategori-penelitian', label: 'Subkategori', element: <SubkategoriPenelitianPage />, roles: admin },
+    ],
+  },
+  {
+    title: 'Pengabdian',
+    items: [
+      { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
+      { path: '/kategori-pengabdian', label: 'Kategori', element: <KategoriPengabdianPage />, roles: admin },
+      { path: '/subkategori-pengabdian', label: 'Subkategori', element: <SubkategoriPengabdianPage />, roles: admin },
     ],
   },
   {

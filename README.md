@@ -11,6 +11,9 @@ Aplikasi web untuk mengelola data akademik (dosen, prodi, penelitian), dibuat de
 | Menu | Halaman | Tabel |
 |---|---|---|
 | Penelitian | Data Penelitian | `penelitian` + `penelitian_anggota` (penelitian_id, dosen_id) |
+| Pengabdian | Data Pengabdian | `pengabdian` + `pengabdian_anggota` (kolom sama seperti penelitian, dengan `judul_pengabdian`) |
+| Pengabdian | Kategori | `kategori_pengabdian` (id, kategori_pengabdian) |
+| Pengabdian | Subkategori | `subkategori_pengabdian` (id, sub_kategori_pengabdian, kategori_pengabdian_id) |
 | Pengaturan | Pengguna | `profiles` (id, email, role, dosen_id) |
 | Master Data | Dosen | `dosen` (id, nama, nidn, prodi_id) |
 | Master Data | Prodi | `prodi` (id, prodi) |
@@ -73,6 +76,7 @@ npm install @supabase/supabase-js react-router-dom
    3. [`supabase/auth.sql`](supabase/auth.sql): tabel `profiles` dan `penelitian_anggota`, serta aturan hak akses (lihat tahap 9)
    4. [`supabase/tim-penelitian.sql`](supabase/tim-penelitian.sql): kolom penginput dan aturan akses untuk tim (lihat tahap 11)
    5. [`supabase/ketua-luar.sql`](supabase/ketua-luar.sql): ketua dari luar daftar dosen (lihat tahap 12)
+   6. [`supabase/pengabdian.sql`](supabase/pengabdian.sql): modul pengabdian lengkap (lihat tahap 13)
 
    Urutannya penting karena setiap file merujuk ke tabel dari file sebelumnya.
 
@@ -215,7 +219,7 @@ menginput penelitian.
 - [`src/pages/LoginPage.tsx`](src/pages/LoginPage.tsx): form login (`supabase.auth.signInWithPassword`).
 - [`src/menu.tsx`](src/menu.tsx): setiap menu punya `roles` yang menentukan siapa yang bisa melihatnya.
   Halaman yang tidak boleh dibuka juga tidak didaftarkan di routing.
-- [`src/pages/PenelitianPage.tsx`](src/pages/PenelitianPage.tsx):
+- [`src/components/KegiatanPage.tsx`](src/components/KegiatanPage.tsx) (dipakai halaman Penelitian dan Pengabdian):
   - Tombol Edit/Hapus hanya muncul jika `canEdit` bernilai benar.
   - Pemantau tidak melihat form dan tombol aksi.
   - Pemilihan tim dan ketua dijelaskan di tahap 11.
@@ -292,7 +296,7 @@ Jalankan [`supabase/tim-penelitian.sql`](supabase/tim-penelitian.sql) di SQL Edi
   Jadi dosen tetap bisa mengelola penelitian yang ia input walaupun ketuanya orang lain.
 
 Pengecekan "ketua harus anggota tim" dan "penginput harus masuk tim" dilakukan di form
-(`validate` dan `lockedValues` di `PenelitianPage.tsx`).
+(`validate` dan `lockedValues` di `KegiatanPage.tsx`).
 
 ### 12. Ketua dari luar daftar dosen
 
@@ -312,16 +316,48 @@ Jalankan [`supabase/ketua-luar.sql`](supabase/ketua-luar.sql) di SQL Editor. Fil
 - Menambah kolom `penelitian.ketua_luar`.
 - Menambah aturan bahwa setiap penelitian harus punya tepat **satu** ketua: `dosen_id` **atau** `ketua_luar`.
 
+### 13. Modul Pengabdian
+
+Pengabdian dibuat sama persis dengan penelitian:
+
+- Ada kategori dan subkategori.
+- Ada Tim Pengabdian, dan ketua dipilih dari tim atau dari luar daftar dosen.
+- Hak akses per role dan pencatatan penginput juga sama.
+
+Jalankan [`supabase/pengabdian.sql`](supabase/pengabdian.sql) di SQL Editor. File ini sudah
+lengkap: tabel, fungsi bantu, dan aturan akses. Setelah itu isi kategori dan subkategorinya
+lewat menu **Pengabdian → Kategori / Subkategori** (login sebagai admin).
+
+Kedua halaman memakai satu komponen yang sama,
+[`src/components/KegiatanPage.tsx`](src/components/KegiatanPage.tsx). Nama kolom diturunkan dari
+nama tabel, contohnya untuk `table="pengabdian"`:
+
+| Kegunaan | Nama |
+|---|---|
+| Judul | `pengabdian.judul_pengabdian` |
+| Subkategori | `pengabdian.sub_kategori_pengabdian_id` → `subkategori_pengabdian.sub_kategori_pengabdian` |
+| Kategori | `subkategori_pengabdian.kategori_pengabdian_id` → `kategori_pengabdian.kategori_pengabdian` |
+| Anggota tim | `pengabdian_anggota (pengabdian_id, dosen_id)` |
+
+Jadi kegiatan baru dengan pola yang sama (misalnya **publikasi** atau **HKI**) cukup dibuat dengan:
+
+1. Salin `supabase/pengabdian.sql`, lalu ganti semua kata `pengabdian` dengan nama baru. Jalankan di SQL Editor.
+2. Buat halaman satu baris:
+   ```tsx
+   <KegiatanPage title="HKI" table="hki" timLabel="Tim Inventor" />
+   ```
+3. Daftarkan halaman data, kategori, dan subkategorinya di `src/menu.tsx`.
+
 ---
 
 ## Cara Menambah Halaman Baru
 
 1. Buat tabel di Supabase (SQL Editor), aktifkan RLS dan buat policy-nya. Contoh policy berbasis role ada di `supabase/auth.sql`.
 2. Tambahkan tipe datanya di `src/types.ts`.
-3. Buat file halaman di `src/pages/`, misalnya `PengabdianPage.tsx`, dengan meniru `src/pages/PenelitianPage.tsx`.
+3. Buat file halaman di `src/pages/`, misalnya `LaporanPage.tsx`, dengan meniru `src/pages/DosenPage.tsx` (form biasa) atau `src/pages/PengabdianPage.tsx` (kegiatan dengan tim).
 4. Daftarkan di `src/menu.tsx`:
    ```tsx
-   { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
+   { path: '/laporan', label: 'Laporan', element: <LaporanPage />, roles: semua },
    ```
    Sidebar dan routing akan bertambah otomatis.
 
@@ -334,6 +370,7 @@ supabase/
   auth.sql                # profil/role, anggota penelitian & hak akses (RLS)
   tim-penelitian.sql      # penginput penelitian & ketua dipilih dari tim
   ketua-luar.sql          # ketua dari luar daftar dosen
+  pengabdian.sql          # modul pengabdian (tabel + hak akses)
 scripts/
   import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)
 data/                     # file CSV untuk import (tidak di-commit)
@@ -342,6 +379,7 @@ src/
   auth.tsx                # sesi login & profil pengguna
   components/
     CrudPage.tsx          # komponen form + tabel CRUD
+    KegiatanPage.tsx      # halaman penelitian/pengabdian (tim, ketua, subkategori)
     Layout.tsx            # sidebar
   pages/                  # satu file per halaman
   menu.tsx                # daftar menu & routing
