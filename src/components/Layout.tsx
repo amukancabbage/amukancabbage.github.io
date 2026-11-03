@@ -16,11 +16,11 @@ export default function Layout({ children }: { children: ReactNode }) {
         <button className="menu-toggle" aria-label="Buka menu" onClick={() => setOpen(true)}>
           ☰
         </button>
-        <strong>Sistem Akademik</strong>
+        <strong>SISIDOS</strong>
       </header>
 
       <aside className={`sidebar${open ? ' open' : ''}`}>
-        <div className="brand">Sistem Akademik</div>
+        <div className="brand">SISIDOS</div>
         <nav>
           {menuFor(profile.role).map((group) => (
             <div key={group.title} className="menu-group">

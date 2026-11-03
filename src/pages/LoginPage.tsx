@@ -22,7 +22,7 @@ export default function LoginPage() {
   return (
     <div className="login">
       <form className="card login-card" onSubmit={handleSubmit}>
-        <h1>Sistem Akademik</h1>
+        <h1>SISIDOS</h1>
         <p>Silakan masuk dengan akun Anda.</p>
         <label>
           <span>Email</span>
