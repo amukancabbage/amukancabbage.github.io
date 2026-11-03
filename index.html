@@ -1,56 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
-    <title>Aplikasi Presensi & Bekerja dari Rumah</title>
-    <meta name="description" content="Aplikasi Presensi & Bekerja dari Rumah" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="preconnect" href="https://api.football-data.org">
-    <link rel="preconnect" href="https://storage.googleapis.com">
-    <link rel="stylesheet" href="assets/vendor/materialize/css/materialize.min.css">
-    <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#00897B" />
-    <link rel="apple-touch-icon" href="/assets/image/dikbud-192x192.png">
-    <style>
-        html,
-        body,
-        .login-box {
-            height: 100%;
-        }
-    </style>
-</head>
-
-<body id="body-html">
-    <div class="valign-wrapper row login-box">
-        <div class="col s12">
-            <center>
-                <div class="preloader-wrapper big active">
-                    <div class="spinner-layer spinner-blue-only">
-                        <div class="circle-clipper left">
-                            <div class="circle"></div>
-                        </div>
-                        <div class="gap-patch">
-                            <div class="circle"></div>
-                        </div>
-                        <div class="circle-clipper right">
-                            <div class="circle"></div>
-                        </div>
-                    </div>
-                </div>
-            </center>
-        </div>
-    </div>
-    <script src="assets/vendor/materialize/js/materialize.min.js"></script>
-    <script src="assets/js/lib.js"></script>
-    <script src="assets/js/auth.js"></script>
-</body>
-
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sistem-akademik</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
-
-<script src="service-worker-register.js"></script>
-<!-- <script>
-    document.addEventListener("DOMContentLoaded", _ => {
-        // getStandings();
-    });
-</script> -->
