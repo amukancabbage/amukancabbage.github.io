@@ -2,27 +2,44 @@ import type { ReactNode } from 'react';
 import DosenPage from './pages/DosenPage';
 import KategoriPenelitianPage from './pages/KategoriPenelitianPage';
 import PenelitianPage from './pages/PenelitianPage';
+import PenggunaPage from './pages/PenggunaPage';
 import ProdiPage from './pages/ProdiPage';
 import SubkategoriPenelitianPage from './pages/SubkategoriPenelitianPage';
+import type { Role } from './types';
 
-export type MenuItem = { path: string; label: string; element: ReactNode };
+export type MenuItem = { path: string; label: string; element: ReactNode; roles: Role[] };
 export type MenuGroup = { title: string; items: MenuItem[] };
 
-// Tambahkan halaman baru di sini; sidebar dan routing ikut otomatis
+const semua: Role[] = ['admin', 'dosen', 'pemantau'];
+const admin: Role[] = ['admin'];
+
+// Tambahkan halaman baru di sini; sidebar dan routing ikut otomatis.
+// `roles` menentukan siapa saja yang bisa melihat menu tersebut.
 export const menu: MenuGroup[] = [
-  {
-    title: 'Master Data',
-    items: [
-      { path: '/dosen', label: 'Dosen', element: <DosenPage /> },
-      { path: '/prodi', label: 'Prodi', element: <ProdiPage /> },
-    ],
-  },
   {
     title: 'Penelitian',
     items: [
-      { path: '/penelitian', label: 'Data Penelitian', element: <PenelitianPage /> },
-      { path: '/kategori-penelitian', label: 'Kategori', element: <KategoriPenelitianPage /> },
-      { path: '/subkategori-penelitian', label: 'Subkategori', element: <SubkategoriPenelitianPage /> },
+      { path: '/penelitian', label: 'Data Penelitian', element: <PenelitianPage />, roles: semua },
+      { path: '/kategori-penelitian', label: 'Kategori', element: <KategoriPenelitianPage />, roles: admin },
+      { path: '/subkategori-penelitian', label: 'Subkategori', element: <SubkategoriPenelitianPage />, roles: admin },
     ],
   },
+  {
+    title: 'Master Data',
+    items: [
+      { path: '/dosen', label: 'Dosen', element: <DosenPage />, roles: admin },
+      { path: '/prodi', label: 'Prodi', element: <ProdiPage />, roles: admin },
+    ],
+  },
+  {
+    title: 'Pengaturan',
+    items: [{ path: '/pengguna', label: 'Pengguna', element: <PenggunaPage />, roles: admin }],
+  },
 ];
+
+// Menu yang boleh dilihat oleh role tertentu (grup kosong disembunyikan)
+export function menuFor(role: Role): MenuGroup[] {
+  return menu
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.roles.includes(role)) }))
+    .filter((g) => g.items.length > 0);
+}

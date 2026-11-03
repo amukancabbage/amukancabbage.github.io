@@ -5,8 +5,13 @@ Aplikasi web untuk mengelola data akademik (dosen, prodi, penelitian), dibuat de
 
 ## Fitur
 
+- Login dengan 3 level user: **admin**, **dosen**, dan **pemantau** (lihat [Hak Akses](#hak-akses))
+- Data penelitian lengkap dengan **ketua** dan **anggota** penelitian
+
 | Menu | Halaman | Tabel |
 |---|---|---|
+| Penelitian | Data Penelitian | `penelitian` + `penelitian_anggota` (penelitian_id, dosen_id) |
+| Pengaturan | Pengguna | `profiles` (id, email, role, dosen_id) |
 | Master Data | Dosen | `dosen` (id, nama, nidn, prodi_id) |
 | Master Data | Prodi | `prodi` (id, prodi) |
 | Penelitian | Data Penelitian | `penelitian` (id, dosen_id, sub_kategori_penelitian_id, judul_penelitian, tahun, publikasi, url_bukti, url_dokumen, keterangan) |
@@ -17,10 +22,27 @@ Relasi antar tabel:
 
 ```
 prodi ──< dosen ──< penelitian >── subkategori_penelitian >── kategori_penelitian
+            │ │         │
+            │ └──< penelitian_anggota      (dosen sebagai anggota)
+            └── profiles ── auth.users     (akun login)
 ```
 
-Setiap halaman bisa menambah, menampilkan, mengedit, dan menghapus data (CRUD).
+Setiap halaman bisa menambah, menampilkan, mengedit, dan menghapus data (CRUD) sesuai hak akses.
 Data yang masih dipakai tabel lain tidak bisa dihapus (misalnya prodi yang masih punya dosen).
+
+## Hak Akses
+
+| | Admin | Dosen | Pemantau |
+|---|:-:|:-:|:-:|
+| Lihat penelitian | Semua | Yang ia ketuai **atau** ia menjadi anggota | Semua |
+| Tambah penelitian | ✅ (bebas memilih ketua) | ✅ (ketua otomatis dirinya) | ❌ |
+| Edit / hapus penelitian | Semua | Hanya yang ia ketuai | ❌ |
+| Atur anggota penelitian | ✅ | Hanya pada penelitian yang ia ketuai | ❌ |
+| Master data (dosen, prodi, kategori, subkategori) | ✅ | ❌ | ❌ |
+| Atur pengguna & role | ✅ | ❌ | ❌ |
+
+Hak akses dijaga di **database** lewat Row Level Security (RLS), bukan hanya disembunyikan di
+tampilan. Jadi walaupun seseorang memanggil API Supabase langsung, aturannya tetap berlaku.
 
 ---
 
@@ -49,11 +71,12 @@ npm install @supabase/supabase-js react-router-dom
 2. Buka **SQL Editor**, lalu jalankan file berikut **secara berurutan**:
    1. [`supabase/schema.sql`](supabase/schema.sql): tabel `prodi` dan `dosen`
    2. [`supabase/penelitian.sql`](supabase/penelitian.sql): tabel `kategori_penelitian`, `subkategori_penelitian`, dan `penelitian`
+   3. [`supabase/auth.sql`](supabase/auth.sql): tabel `profiles` dan `penelitian_anggota`, serta aturan hak akses (lihat tahap 9)
 
-   Urutannya penting karena tabel `penelitian` merujuk ke tabel `dosen`.
+   Urutannya penting karena setiap file merujuk ke tabel dari file sebelumnya.
 
-3. File SQL tersebut sudah mengaktifkan **Row Level Security (RLS)** dengan aturan akses publik
-   supaya aplikasi bisa membaca dan menulis data memakai publishable key.
+3. Dua file pertama membuat aturan akses publik untuk uji coba. File `auth.sql` menghapus
+   aturan publik tersebut dan menggantinya dengan aturan berdasarkan role.
 
 ### 4. Menghubungkan aplikasi ke Supabase
 
@@ -156,16 +179,58 @@ Buka alamat yang muncul di terminal (biasanya `http://localhost:5173`).
 6. Klik **Deploy**. Setiap kali environment variable diubah, lakukan **Redeploy**,
    karena nilainya dimasukkan ke kode saat build.
 
+### 9. Sistem login dan 3 level user
+
+**a. Jalankan [`supabase/auth.sql`](supabase/auth.sql)** di SQL Editor. Isinya:
+
+- Tabel `profiles` berisi `role` (`admin` / `dosen` / `pemantau`) dan `dosen_id`, yaitu hubungan
+  akun ke data dosen. Profil dibuat **otomatis** oleh trigger setiap ada user baru,
+  dengan role awal `pemantau`.
+- Tabel `penelitian_anggota` menyimpan anggota penelitian. Ketua tetap disimpan di `penelitian.dosen_id`.
+- Fungsi bantu `my_role()`, `my_dosen_id()`, `is_admin()`, `is_ketua()`, dan `is_anggota()` yang dipakai oleh aturan RLS.
+- Aturan RLS baru sesuai tabel [Hak Akses](#hak-akses).
+
+**b. Matikan pendaftaran mandiri.** Di Supabase → **Authentication → Sign In / Providers**,
+matikan **Allow new users to sign up**. Dengan begitu hanya admin yang bisa membuat akun, dan
+orang asing tidak bisa mendaftar sendiri lalu ikut melihat data sebagai pemantau.
+
+**c. Buat akun.** Di Supabase → **Authentication → Users → Add user → Create new user**, isi email dan password,
+lalu centang **Auto Confirm User**.
+
+**d. Jadikan akun pertama sebagai admin.** Jalankan di SQL Editor (ganti email-nya):
+
+```sql
+update public.profiles set role = 'admin' where email = 'admin@contoh.ac.id';
+```
+
+**e. Atur akun lain dari aplikasi.** Login sebagai admin, buka menu **Pengguna**, klik **Edit**, lalu pilih
+role-nya. Untuk role **Dosen**, pilih juga **Data Dosen**-nya. Tanpa itu, dosen tidak bisa
+menginput penelitian.
+
+**Bagian kode yang terkait:**
+
+- [`src/auth.tsx`](src/auth.tsx): `AuthProvider` menyimpan sesi login dan profil (role & dosen).
+  Hook `useAuth()` / `useProfile()` dipakai di halaman.
+- [`src/pages/LoginPage.tsx`](src/pages/LoginPage.tsx): form login (`supabase.auth.signInWithPassword`).
+- [`src/menu.tsx`](src/menu.tsx): setiap menu punya `roles` yang menentukan siapa yang bisa melihatnya.
+  Halaman yang tidak boleh dibuka juga tidak didaftarkan di routing.
+- [`src/pages/PenelitianPage.tsx`](src/pages/PenelitianPage.tsx):
+  - Admin memilih ketua sendiri.
+  - Untuk dosen, kolom Ketua disembunyikan dan `dosen_id` diisi otomatis lewat `fixedValues`.
+  - Tombol Edit/Hapus hanya muncul jika `canEdit` bernilai benar.
+  - Pemantau tidak melihat form dan tombol aksi.
+  - Anggota dipilih dengan checkbox (field `type: 'multiselect'` + `junction`).
+
 ---
 
 ## Cara Menambah Halaman Baru
 
-1. Buat tabel di Supabase (SQL Editor), aktifkan RLS dan buat policy-nya. Contohnya ada di `supabase/penelitian.sql`.
+1. Buat tabel di Supabase (SQL Editor), aktifkan RLS dan buat policy-nya. Contoh policy berbasis role ada di `supabase/auth.sql`.
 2. Tambahkan tipe datanya di `src/types.ts`.
 3. Buat file halaman di `src/pages/`, misalnya `PengabdianPage.tsx`, dengan meniru `src/pages/PenelitianPage.tsx`.
 4. Daftarkan di `src/menu.tsx`:
    ```tsx
-   { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage /> },
+   { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
    ```
    Sidebar dan routing akan bertambah otomatis.
 
@@ -175,8 +240,10 @@ Buka alamat yang muncul di terminal (biasanya `http://localhost:5173`).
 supabase/
   schema.sql              # tabel prodi & dosen
   penelitian.sql          # tabel kategori, subkategori & penelitian
+  auth.sql                # profil/role, anggota penelitian & hak akses (RLS)
 src/
   lib/supabase.ts         # koneksi Supabase
+  auth.tsx                # sesi login & profil pengguna
   components/
     CrudPage.tsx          # komponen form + tabel CRUD
     Layout.tsx            # sidebar
@@ -189,6 +256,6 @@ src/
 
 ## Catatan Keamanan
 
-Aturan RLS saat ini **terbuka untuk publik**, artinya siapa pun yang membuka situs bisa menambah,
-mengubah, dan menghapus data. Cocok untuk belajar dan uji coba. Untuk dipakai sungguhan, tambahkan
-login (Supabase Auth) dan ubah policy menjadi `using (auth.role() = 'authenticated')`.
+- Setelah `auth.sql` dijalankan, data hanya bisa diakses oleh pengguna yang sudah login, sesuai role-nya.
+- Pastikan **Allow new users to sign up** dimatikan (tahap 9b).
+- Jangan pernah memakai **secret key** di frontend. Gunakan publishable/anon key saja.

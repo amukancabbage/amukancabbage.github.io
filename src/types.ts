@@ -34,5 +34,16 @@ export type Penelitian = {
   url_dokumen: string | null;
   keterangan: string | null;
   dosen?: Pick<Dosen, 'nama'> | null;
+  penelitian_anggota?: { dosen_id: number; dosen: Pick<Dosen, 'nama'> | null }[];
   subkategori_penelitian?: Pick<SubkategoriPenelitian, 'sub_kategori_penelitian' | 'kategori_penelitian'> | null;
+};
+
+export type Role = 'admin' | 'dosen' | 'pemantau';
+
+export type Profile = {
+  id: string;
+  email: string | null;
+  role: Role;
+  dosen_id: number | null;
+  dosen?: Pick<Dosen, 'nama'> | null;
 };

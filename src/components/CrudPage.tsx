@@ -1,53 +1,80 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
-type Option = { value: number; label: string };
+type Option = { value: number | string; label: string };
+type FormValues = Record<string, string | string[]>;
 
 export type Field<T> = {
   name: keyof T & string;
   label: string;
-  type?: 'text' | 'number' | 'url' | 'textarea' | 'select';
+  type?: 'text' | 'number' | 'url' | 'textarea' | 'select' | 'multiselect';
   required?: boolean;
   // lebar penuh di form
   wide?: boolean;
-  // untuk type 'select': pilihan diambil dari tabel lain
+  // untuk 'select' / 'multiselect': pilihan diambil dari tabel lain
   source?: { table: string; select: string; order: string; label: (row: any) => string };
+  // untuk 'select': pilihan tetap (tidak dari tabel)
+  options?: Option[];
+  // untuk 'multiselect': tabel penghubung banyak-ke-banyak
+  // contoh anggota: { table: 'penelitian_anggota', foreignKey: 'penelitian_id', valueKey: 'dosen_id' }
+  junction?: { table: string; foreignKey: string; valueKey: string };
+  // untuk 'multiselect': nilai yang sudah tersimpan pada baris
+  getValues?: (row: T) => (number | string)[];
   // tampilan kolom di tabel; default menampilkan nilai field apa adanya
   render?: (row: T) => ReactNode;
   hideInTable?: boolean;
+  hideInForm?: boolean;
 };
 
 type Props<T> = {
   title: string;
+  // keterangan singkat di bawah judul
+  description?: ReactNode;
   table: string;
   select: string;
   order?: { column: string; ascending?: boolean };
   fields: Field<T>[];
+  // hak akses; default semua diizinkan
+  canCreate?: boolean;
+  canEdit?: (row: T) => boolean;
+  canDelete?: (row: T) => boolean;
+  // nilai yang selalu ikut disimpan, mis. dosen_id milik dosen yang login
+  fixedValues?: Record<string, unknown>;
 };
 
-function emptyForm<T>(fields: Field<T>[]) {
-  return Object.fromEntries(fields.map((f) => [f.name, ''])) as Record<string, string>;
+function emptyForm<T>(fields: Field<T>[]): FormValues {
+  return Object.fromEntries(fields.map((f) => [f.name, f.type === 'multiselect' ? [] : '']));
 }
 
 function errorMessage(error: { code?: string; message: string }) {
   if (error.code === '23503') return 'Data masih dipakai oleh data lain, tidak bisa dihapus.';
   if (error.code === '23505') return 'Data sudah ada (duplikat).';
+  if (error.code === '42501') return 'Anda tidak punya hak akses untuk aksi ini.';
   return error.message;
 }
 
-export default function CrudPage<T extends { id: number }>({
+const allow = () => true;
+
+export default function CrudPage<T extends { id: number | string }>({
   title,
+  description,
   table,
   select,
   order = { column: 'id' },
   fields,
+  canCreate = true,
+  canEdit = allow,
+  canDelete = canEdit,
+  fixedValues,
 }: Props<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [options, setOptions] = useState<Record<string, Option[]>>({});
   const [form, setForm] = useState(() => emptyForm(fields));
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<T['id'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const formFields = fields.filter((f) => !f.hideInForm);
 
   async function loadRows() {
     setLoading(true);
@@ -62,7 +89,7 @@ export default function CrudPage<T extends { id: number }>({
 
   async function loadOptions() {
     const entries = await Promise.all(
-      fields
+      formFields
         .filter((f) => f.source)
         .map(async (f) => {
           const s = f.source!;
@@ -79,33 +106,67 @@ export default function CrudPage<T extends { id: number }>({
     loadOptions();
   }, []);
 
+  function toValue(f: Field<T>, raw: string) {
+    const value = raw.trim();
+    if (value === '') return null;
+    return f.type === 'number' || f.source ? Number(value) : value;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const payload = Object.fromEntries(
-      fields.map((f) => {
-        const value = form[f.name].trim();
-        if (value === '') return [f.name, null];
-        return [f.name, f.type === 'number' || f.type === 'select' ? Number(value) : value];
-      }),
-    ) as Record<string, any>;
-    const { error } = editId
-      ? await supabase.from(table).update(payload).eq('id', editId)
-      : await supabase.from(table).insert(payload);
-    if (error) {
-      setError(errorMessage(error));
-      return;
+    const payload: Record<string, any> = {
+      ...Object.fromEntries(
+        formFields
+          .filter((f) => f.type !== 'multiselect')
+          .map((f) => [f.name, toValue(f, form[f.name] as string)]),
+      ),
+      ...fixedValues,
+    };
+
+    let id = editId;
+    if (editId != null) {
+      const { error } = await supabase.from(table).update(payload).eq('id', editId);
+      if (error) return setError(errorMessage(error));
+    } else {
+      const { data, error } = await supabase.from(table).insert(payload).select('id').single();
+      if (error) return setError(errorMessage(error));
+      id = data.id;
     }
+
+    // simpan relasi banyak-ke-banyak: hapus yang lama, masukkan yang baru
+    for (const f of formFields.filter((f) => f.junction)) {
+      const j = f.junction!;
+      const del = await supabase.from(j.table).delete().eq(j.foreignKey, id);
+      if (del.error) return setError(errorMessage(del.error));
+      const values = form[f.name] as string[];
+      if (values.length === 0) continue;
+      const ins = await supabase
+        .from(j.table)
+        .insert(values.map((v) => ({ [j.foreignKey]: id, [j.valueKey]: toValue(f, v) })));
+      if (ins.error) return setError(errorMessage(ins.error));
+    }
+
+    setError(null);
     resetForm();
     loadRows();
   }
 
   function handleEdit(row: T) {
     setEditId(row.id);
-    setForm(Object.fromEntries(fields.map((f) => [f.name, String(row[f.name] ?? '')])));
+    setForm(
+      Object.fromEntries(
+        formFields.map((f) => [
+          f.name,
+          f.type === 'multiselect'
+            ? (f.getValues?.(row) ?? []).map(String)
+            : String(row[f.name] ?? ''),
+        ]),
+      ),
+    );
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(id: T['id']) {
     if (!confirm(`Hapus data ${title.toLowerCase()} ini?`)) return;
     const { error } = await supabase.from(table).delete().eq('id', id);
     if (error) setError(errorMessage(error));
@@ -118,9 +179,32 @@ export default function CrudPage<T extends { id: number }>({
   }
 
   function renderInput(f: Field<T>) {
+    if (f.type === 'multiselect') {
+      const selected = form[f.name] as string[];
+      const toggle = (v: string) =>
+        setForm({
+          ...form,
+          [f.name]: selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v],
+        });
+      return (
+        <div className="checklist">
+          {(options[f.name] ?? []).map((o) => (
+            <label key={o.value}>
+              <input
+                type="checkbox"
+                checked={selected.includes(String(o.value))}
+                onChange={() => toggle(String(o.value))}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      );
+    }
+
     const common = {
       id: f.name,
-      value: form[f.name],
+      value: form[f.name] as string,
       required: f.required,
       onChange: (e: { target: { value: string } }) => setForm({ ...form, [f.name]: e.target.value }),
     };
@@ -129,7 +213,7 @@ export default function CrudPage<T extends { id: number }>({
       return (
         <select {...common}>
           <option value="">-- Pilih {f.label} --</option>
-          {(options[f.name] ?? []).map((o) => (
+          {(f.options ?? options[f.name] ?? []).map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -140,30 +224,40 @@ export default function CrudPage<T extends { id: number }>({
   }
 
   const columns = fields.filter((f) => !f.hideInTable);
+  const showForm = canCreate || editId != null;
+  const showActions = rows.some((r) => canEdit(r) || canDelete(r));
+  const colSpan = columns.length + (showActions ? 2 : 1);
 
   return (
     <section className="page">
       <h1>{title}</h1>
+      {description && <p className="notice">{description}</p>}
 
-      <form className="card form" onSubmit={handleSubmit}>
-        {fields.map((f) => (
-          <label key={f.name} htmlFor={f.name} className={f.wide ? 'wide' : undefined}>
-            <span>
-              {f.label}
-              {f.required && <em> *</em>}
-            </span>
-            {renderInput(f)}
-          </label>
-        ))}
-        <div className="form-actions">
-          <button type="submit">{editId ? 'Simpan Perubahan' : 'Tambah'}</button>
-          {editId && (
-            <button type="button" className="secondary" onClick={resetForm}>
-              Batal
-            </button>
-          )}
-        </div>
-      </form>
+      {showForm && (
+        <form className="card form" onSubmit={handleSubmit}>
+          {formFields.map((f) => (
+            <label
+              key={f.name}
+              htmlFor={f.type === 'multiselect' ? undefined : f.name}
+              className={f.wide ? 'wide' : undefined}
+            >
+              <span>
+                {f.label}
+                {f.required && <em> *</em>}
+              </span>
+              {renderInput(f)}
+            </label>
+          ))}
+          <div className="form-actions">
+            <button type="submit">{editId != null ? 'Simpan Perubahan' : 'Tambah'}</button>
+            {editId != null && (
+              <button type="button" className="secondary" onClick={resetForm}>
+                Batal
+              </button>
+            )}
+          </div>
+        </form>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -171,37 +265,43 @@ export default function CrudPage<T extends { id: number }>({
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>No</th>
               {columns.map((f) => (
                 <th key={f.name}>{f.label}</th>
               ))}
-              <th>Aksi</th>
+              {showActions && <th>Aksi</th>}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length + 2}>Memuat...</td>
+                <td colSpan={colSpan}>Memuat...</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 2}>Belum ada data</td>
+                <td colSpan={colSpan}>Belum ada data</td>
               </tr>
             ) : (
-              rows.map((row) => (
+              rows.map((row, i) => (
                 <tr key={row.id}>
-                  <td>{row.id}</td>
+                  <td>{i + 1}</td>
                   {columns.map((f) => (
                     <td key={f.name}>{f.render ? f.render(row) : String(row[f.name] ?? '-')}</td>
                   ))}
-                  <td className="actions">
-                    <button className="secondary" onClick={() => handleEdit(row)}>
-                      Edit
-                    </button>
-                    <button className="danger" onClick={() => handleDelete(row.id)}>
-                      Hapus
-                    </button>
-                  </td>
+                  {showActions && (
+                    <td className="actions">
+                      {canEdit(row) && (
+                        <button className="secondary" onClick={() => handleEdit(row)}>
+                          Edit
+                        </button>
+                      )}
+                      {canDelete(row) && (
+                        <button className="danger" onClick={() => handleDelete(row.id)}>
+                          Hapus
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))
             )}
