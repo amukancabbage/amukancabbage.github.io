@@ -14,7 +14,7 @@ Aplikasi web untuk mengelola data akademik (dosen, prodi, penelitian), dibuat de
 | Pengaturan | Pengguna | `profiles` (id, email, role, dosen_id) |
 | Master Data | Dosen | `dosen` (id, nama, nidn, prodi_id) |
 | Master Data | Prodi | `prodi` (id, prodi) |
-| Penelitian | Data Penelitian | `penelitian` (id, dosen_id, sub_kategori_penelitian_id, judul_penelitian, tahun, publikasi, url_bukti, url_dokumen, keterangan) |
+| Penelitian | Data Penelitian | `penelitian` (id, dosen_id, ketua_luar, sub_kategori_penelitian_id, judul_penelitian, tahun, publikasi, url_bukti, url_dokumen, keterangan) |
 | Penelitian | Kategori | `kategori_penelitian` (id, kategori_penelitian) |
 | Penelitian | Subkategori | `subkategori_penelitian` (id, sub_kategori_penelitian, kategori_penelitian_id) |
 
@@ -34,10 +34,9 @@ Data yang masih dipakai tabel lain tidak bisa dihapus (misalnya prodi yang masih
 
 | | Admin | Dosen | Pemantau |
 |---|:-:|:-:|:-:|
-| Lihat penelitian | Semua | Yang ia ketuai **atau** ia menjadi anggota | Semua |
-| Tambah penelitian | ✅ (bebas memilih ketua) | ✅ (ketua otomatis dirinya) | ❌ |
-| Edit / hapus penelitian | Semua | Hanya yang ia ketuai | ❌ |
-| Atur anggota penelitian | ✅ | Hanya pada penelitian yang ia ketuai | ❌ |
+| Lihat penelitian | Semua | Yang ia ketuai, ia input, **atau** ia menjadi anggota | Semua |
+| Tambah penelitian | ✅ | ✅ (otomatis masuk tim, ketua dipilih dari tim) | ❌ |
+| Edit / hapus penelitian dan atur tim | Semua | Yang ia ketuai atau ia input | ❌ |
 | Master data (dosen, prodi, kategori, subkategori) | ✅ | ❌ | ❌ |
 | Atur pengguna & role | ✅ | ❌ | ❌ |
 
@@ -72,6 +71,8 @@ npm install @supabase/supabase-js react-router-dom
    1. [`supabase/schema.sql`](supabase/schema.sql): tabel `prodi` dan `dosen`
    2. [`supabase/penelitian.sql`](supabase/penelitian.sql): tabel `kategori_penelitian`, `subkategori_penelitian`, dan `penelitian`
    3. [`supabase/auth.sql`](supabase/auth.sql): tabel `profiles` dan `penelitian_anggota`, serta aturan hak akses (lihat tahap 9)
+   4. [`supabase/tim-penelitian.sql`](supabase/tim-penelitian.sql): kolom penginput dan aturan akses untuk tim (lihat tahap 11)
+   5. [`supabase/ketua-luar.sql`](supabase/ketua-luar.sql): ketua dari luar daftar dosen (lihat tahap 12)
 
    Urutannya penting karena setiap file merujuk ke tabel dari file sebelumnya.
 
@@ -215,11 +216,9 @@ menginput penelitian.
 - [`src/menu.tsx`](src/menu.tsx): setiap menu punya `roles` yang menentukan siapa yang bisa melihatnya.
   Halaman yang tidak boleh dibuka juga tidak didaftarkan di routing.
 - [`src/pages/PenelitianPage.tsx`](src/pages/PenelitianPage.tsx):
-  - Admin memilih ketua sendiri.
-  - Untuk dosen, kolom Ketua disembunyikan dan `dosen_id` diisi otomatis lewat `fixedValues`.
   - Tombol Edit/Hapus hanya muncul jika `canEdit` bernilai benar.
   - Pemantau tidak melihat form dan tombol aksi.
-  - Anggota dipilih dengan checkbox (field `type: 'multiselect'` + `junction`).
+  - Pemilihan tim dan ketua dijelaskan di tahap 11.
 
 ### 10. Import akun dosen dari Excel
 
@@ -277,6 +276,42 @@ Script aman dijalankan ulang: data yang sudah ada tidak akan dibuat dua kali.
 **f. Bagikan password.** Hasilnya disimpan di `data/hasil-import.csv`, termasuk password akun
 baru. Bagikan ke masing-masing dosen dengan aman, lalu **hapus file tersebut**.
 
+### 11. Tim peneliti: ketua dipilih dari anggota tim
+
+Dosen yang menginput tidak harus menjadi ketua. Alurnya:
+
+1. Centang **Tim Peneliti**. Dosen yang menginput otomatis tercentang dan tidak bisa dihapus dari tim.
+   Kolom pencarian membantu mencari nama di antara banyak dosen.
+2. Pilih **Ketua**. Pilihannya hanya berisi dosen yang dicentang di Tim Peneliti.
+3. Saat disimpan, ketua masuk ke `penelitian.dosen_id`, dan anggota tim lainnya masuk ke `penelitian_anggota`.
+
+Jalankan [`supabase/tim-penelitian.sql`](supabase/tim-penelitian.sql) di SQL Editor. File ini:
+
+- Menambah kolom `penelitian.created_by`, yang otomatis diisi akun yang menginput.
+- Mengubah aturan akses: penelitian boleh diubah/dihapus oleh admin, ketua, **atau** penginput.
+  Jadi dosen tetap bisa mengelola penelitian yang ia input walaupun ketuanya orang lain.
+
+Pengecekan "ketua harus anggota tim" dan "penginput harus masuk tim" dilakukan di form
+(`validate` dan `lockedValues` di `PenelitianPage.tsx`).
+
+### 12. Ketua dari luar daftar dosen
+
+Jika ketuanya tidak ada di daftar dosen (misalnya dosen dari kampus lain), dan dosen yang menginput
+hanya menjadi anggota:
+
+1. Centang **Tim Peneliti**. Isinya cukup anggota yang ada di daftar dosen, termasuk penginput.
+2. Di **Ketua**, pilih **"Ketua dari luar daftar dosen…"** di bagian paling bawah.
+3. Isi **Nama Ketua (luar daftar dosen)** yang kemudian muncul.
+
+Di tabel, ketua tersebut tampil dengan tanda **(luar)**. Semua dosen yang dicentang tersimpan
+sebagai anggota. Penelitian ini tetap bisa diedit oleh dosen yang menginputnya.
+
+Jalankan [`supabase/ketua-luar.sql`](supabase/ketua-luar.sql) di SQL Editor. File ini:
+
+- Membuat `penelitian.dosen_id` boleh kosong.
+- Menambah kolom `penelitian.ketua_luar`.
+- Menambah aturan bahwa setiap penelitian harus punya tepat **satu** ketua: `dosen_id` **atau** `ketua_luar`.
+
 ---
 
 ## Cara Menambah Halaman Baru
@@ -297,6 +332,8 @@ supabase/
   schema.sql              # tabel prodi & dosen
   penelitian.sql          # tabel kategori, subkategori & penelitian
   auth.sql                # profil/role, anggota penelitian & hak akses (RLS)
+  tim-penelitian.sql      # penginput penelitian & ketua dipilih dari tim
+  ketua-luar.sql          # ketua dari luar daftar dosen
 scripts/
   import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)
 data/                     # file CSV untuk import (tidak di-commit)

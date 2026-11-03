@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
-type Option = { value: number | string; label: string };
-type FormValues = Record<string, string | string[]>;
+export type Option = { value: number | string; label: string };
+export type FormValues = Record<string, string | string[]>;
 
 export type Field<T> = {
   name: keyof T & string;
@@ -15,11 +15,22 @@ export type Field<T> = {
   source?: { table: string; select: string; order: string; label: (row: any) => string };
   // untuk 'select': pilihan tetap (tidak dari tabel)
   options?: Option[];
+  // menyaring pilihan berdasarkan isi form, mis. ketua hanya dari anggota tim
+  filterOptions?: (options: Option[], form: FormValues) => Option[];
+  // pilihan khusus di akhir daftar; nilainya bukan id sehingga disimpan sebagai null
+  extraOptions?: Option[];
+  // field hanya tampil (dan disimpan) jika kondisi terpenuhi; jika tidak, disimpan null
+  showIf?: (form: FormValues) => boolean;
+  // nilai form saat edit; default nilai kolom apa adanya
+  getValue?: (row: T) => string;
   // untuk 'multiselect': tabel penghubung banyak-ke-banyak
   // contoh anggota: { table: 'penelitian_anggota', foreignKey: 'penelitian_id', valueKey: 'dosen_id' }
-  junction?: { table: string; foreignKey: string; valueKey: string };
+  // exclude: nama field lain yang nilainya tidak ikut disimpan di tabel penghubung
+  junction?: { table: string; foreignKey: string; valueKey: string; exclude?: string };
   // untuk 'multiselect': nilai yang sudah tersimpan pada baris
   getValues?: (row: T) => (number | string)[];
+  // untuk 'multiselect': nilai yang selalu tercentang dan tidak bisa dihapus
+  lockedValues?: string[];
   // tampilan kolom di tabel; default menampilkan nilai field apa adanya
   render?: (row: T) => ReactNode;
   hideInTable?: boolean;
@@ -40,10 +51,14 @@ type Props<T> = {
   canDelete?: (row: T) => boolean;
   // nilai yang selalu ikut disimpan, mis. dosen_id milik dosen yang login
   fixedValues?: Record<string, unknown>;
+  // pemeriksaan sebelum menyimpan; kembalikan pesan error atau null
+  validate?: (form: FormValues) => string | null;
 };
 
 function emptyForm<T>(fields: Field<T>[]): FormValues {
-  return Object.fromEntries(fields.map((f) => [f.name, f.type === 'multiselect' ? [] : '']));
+  return Object.fromEntries(
+    fields.map((f) => [f.name, f.type === 'multiselect' ? [...(f.lockedValues ?? [])] : '']),
+  );
 }
 
 function errorMessage(error: { code?: string; message: string }) {
@@ -66,6 +81,7 @@ export default function CrudPage<T extends { id: number | string }>({
   canEdit = allow,
   canDelete = canEdit,
   fixedValues,
+  validate,
 }: Props<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [options, setOptions] = useState<Record<string, Option[]>>({});
@@ -73,6 +89,7 @@ export default function CrudPage<T extends { id: number | string }>({
   const [editId, setEditId] = useState<T['id'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<Record<string, string>>({});
 
   const formFields = fields.filter((f) => !f.hideInForm);
 
@@ -109,16 +126,24 @@ export default function CrudPage<T extends { id: number | string }>({
   function toValue(f: Field<T>, raw: string) {
     const value = raw.trim();
     if (value === '') return null;
-    return f.type === 'number' || f.source ? Number(value) : value;
+    if (f.type === 'number' || f.source) {
+      const n = Number(value);
+      return Number.isNaN(n) ? null : n; // pilihan khusus (extraOptions) -> null
+    }
+    return value;
   }
+
+  const isShown = (f: Field<T>) => !f.showIf || f.showIf(form);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    const invalid = validate?.(form);
+    if (invalid) return setError(invalid);
     const payload: Record<string, any> = {
       ...Object.fromEntries(
         formFields
           .filter((f) => f.type !== 'multiselect')
-          .map((f) => [f.name, toValue(f, form[f.name] as string)]),
+          .map((f) => [f.name, isShown(f) ? toValue(f, form[f.name] as string) : null]),
       ),
       ...fixedValues,
     };
@@ -138,7 +163,8 @@ export default function CrudPage<T extends { id: number | string }>({
       const j = f.junction!;
       const del = await supabase.from(j.table).delete().eq(j.foreignKey, id);
       if (del.error) return setError(errorMessage(del.error));
-      const values = form[f.name] as string[];
+      const excluded = j.exclude ? form[j.exclude] : undefined;
+      const values = (form[f.name] as string[]).filter((v) => v !== excluded);
       if (values.length === 0) continue;
       const ins = await supabase
         .from(j.table)
@@ -158,8 +184,8 @@ export default function CrudPage<T extends { id: number | string }>({
         formFields.map((f) => [
           f.name,
           f.type === 'multiselect'
-            ? (f.getValues?.(row) ?? []).map(String)
-            : String(row[f.name] ?? ''),
+            ? [...new Set([...(f.getValues?.(row) ?? []).map(String), ...(f.lockedValues ?? [])])]
+            : (f.getValue?.(row) ?? String(row[f.name] ?? '')),
         ]),
       ),
     );
@@ -181,23 +207,40 @@ export default function CrudPage<T extends { id: number | string }>({
   function renderInput(f: Field<T>) {
     if (f.type === 'multiselect') {
       const selected = form[f.name] as string[];
+      const locked = f.lockedValues ?? [];
+      const keyword = (search[f.name] ?? '').toLowerCase();
       const toggle = (v: string) =>
         setForm({
           ...form,
           [f.name]: selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v],
         });
       return (
-        <div className="checklist">
-          {(options[f.name] ?? []).map((o) => (
-            <label key={o.value}>
-              <input
-                type="checkbox"
-                checked={selected.includes(String(o.value))}
-                onChange={() => toggle(String(o.value))}
-              />
-              {o.label}
-            </label>
-          ))}
+        <div className="checklist-wrap">
+          <input
+            type="search"
+            placeholder={`Cari ${f.label.toLowerCase()}... (${selected.length} dipilih)`}
+            value={search[f.name] ?? ''}
+            onChange={(e) => setSearch({ ...search, [f.name]: e.target.value })}
+          />
+          <div className="checklist">
+            {(options[f.name] ?? [])
+              // yang sudah dipilih tetap tampil walaupun tidak cocok dengan pencarian
+              .filter(
+                (o) =>
+                  o.label.toLowerCase().includes(keyword) || selected.includes(String(o.value)),
+              )
+              .map((o) => (
+                <label key={o.value}>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(String(o.value))}
+                    disabled={locked.includes(String(o.value))}
+                    onChange={() => toggle(String(o.value))}
+                  />
+                  {o.label}
+                </label>
+              ))}
+          </div>
         </div>
       );
     }
@@ -213,7 +256,12 @@ export default function CrudPage<T extends { id: number | string }>({
       return (
         <select {...common}>
           <option value="">-- Pilih {f.label} --</option>
-          {(f.options ?? options[f.name] ?? []).map((o) => (
+          {[
+            ...(f.filterOptions
+              ? f.filterOptions(f.options ?? options[f.name] ?? [], form)
+              : (f.options ?? options[f.name] ?? [])),
+            ...(f.extraOptions ?? []),
+          ].map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -235,7 +283,7 @@ export default function CrudPage<T extends { id: number | string }>({
 
       {showForm && (
         <form className="card form" onSubmit={handleSubmit}>
-          {formFields.map((f) => (
+          {formFields.filter(isShown).map((f) => (
             <label
               key={f.name}
               htmlFor={f.type === 'multiselect' ? undefined : f.name}

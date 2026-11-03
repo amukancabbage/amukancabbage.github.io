@@ -1,5 +1,5 @@
 import { useProfile } from '../auth';
-import CrudPage, { type Field } from '../components/CrudPage';
+import CrudPage, { type Field, type FormValues } from '../components/CrudPage';
 import type { Penelitian } from '../types';
 
 function link(url: string | null) {
@@ -13,6 +13,25 @@ function link(url: string | null) {
 }
 
 const dosenSource = { table: 'dosen', select: 'id, nama', order: 'nama', label: (d: any) => d.nama };
+
+const timOf = (form: FormValues) => form.penelitian_anggota as string[];
+
+// nilai khusus di pilihan Ketua untuk ketua yang tidak ada di daftar dosen
+const KETUA_LUAR = 'luar';
+const isKetuaLuar = (form: FormValues) => form.dosen_id === KETUA_LUAR;
+
+// ketua wajib salah satu anggota tim, kecuali ketua dari luar daftar dosen
+function validate(form: FormValues) {
+  if (!isKetuaLuar(form) && !timOf(form).includes(form.dosen_id as string)) {
+    return 'Ketua harus dipilih dari Tim Peneliti yang dicentang.';
+  }
+  return null;
+}
+
+function namaKetua(p: Penelitian) {
+  if (p.dosen?.nama) return p.dosen.nama;
+  return p.ketua_luar ? `${p.ketua_luar} (luar)` : '-';
+}
 
 export default function PenelitianPage() {
   const profile = useProfile();
@@ -35,14 +54,43 @@ export default function PenelitianPage() {
   const fields: Field<Penelitian>[] = [
     { name: 'judul_penelitian', label: 'Judul Penelitian', required: true, wide: true },
     {
+      // tim = ketua + anggota; ketua disimpan di dosen_id, sisanya di penelitian_anggota
+      name: 'penelitian_anggota',
+      label: 'Tim Peneliti',
+      type: 'multiselect',
+      wide: true,
+      source: dosenSource,
+      junction: {
+        table: 'penelitian_anggota',
+        foreignKey: 'penelitian_id',
+        valueKey: 'dosen_id',
+        exclude: 'dosen_id',
+      },
+      getValues: (p) => [
+        ...(p.dosen_id != null ? [p.dosen_id] : []),
+        ...(p.penelitian_anggota ?? []).map((a) => a.dosen_id),
+      ],
+      // dosen yang menginput otomatis masuk tim
+      lockedValues: isDosen ? [String(myDosenId)] : undefined,
+      hideInTable: true,
+    },
+    {
       name: 'dosen_id',
       label: 'Ketua',
       type: 'select',
       required: true,
-      // dosen tidak memilih ketua: otomatis dirinya sendiri
-      hideInForm: !isAdmin,
       source: dosenSource,
-      render: (p) => p.dosen?.nama ?? '-',
+      filterOptions: (opts, form) => opts.filter((o) => timOf(form).includes(String(o.value))),
+      extraOptions: [{ value: KETUA_LUAR, label: 'Ketua dari luar daftar dosen…' }],
+      getValue: (p) => (p.dosen_id != null ? String(p.dosen_id) : p.ketua_luar ? KETUA_LUAR : ''),
+      render: namaKetua,
+    },
+    {
+      name: 'ketua_luar',
+      label: 'Nama Ketua (luar daftar dosen)',
+      required: true,
+      showIf: isKetuaLuar,
+      hideInTable: true,
     },
     {
       name: 'sub_kategori_penelitian_id',
@@ -66,13 +114,10 @@ export default function PenelitianPage() {
     { name: 'tahun', label: 'Tahun', type: 'number', required: true },
     { name: 'publikasi', label: 'Publikasi' },
     {
-      name: 'penelitian_anggota',
+      // hanya untuk kolom tabel; diisi lewat Tim Peneliti di atas
+      name: 'id',
       label: 'Anggota',
-      type: 'multiselect',
-      wide: true,
-      source: dosenSource,
-      junction: { table: 'penelitian_anggota', foreignKey: 'penelitian_id', valueKey: 'dosen_id' },
-      getValues: (p) => (p.penelitian_anggota ?? []).map((a) => a.dosen_id),
+      hideInForm: true,
       render: (p) =>
         (p.penelitian_anggota ?? []).map((a) => a.dosen?.nama).join(', ') || '-',
     },
@@ -81,8 +126,9 @@ export default function PenelitianPage() {
     { name: 'keterangan', label: 'Keterangan', type: 'textarea', wide: true, hideInTable: true },
   ];
 
-  // admin: semua; dosen: hanya penelitian yang ia ketuai; pemantau: hanya melihat
-  const canEdit = (p: Penelitian) => isAdmin || (isDosen && p.dosen_id === myDosenId);
+  // admin: semua; dosen: penelitian yang ia ketuai atau ia input; pemantau: hanya melihat
+  const canEdit = (p: Penelitian) =>
+    isAdmin || (isDosen && (p.dosen_id === myDosenId || p.created_by === profile.id));
 
   return (
     <CrudPage<Penelitian>
@@ -94,7 +140,7 @@ export default function PenelitianPage() {
       fields={fields}
       canCreate={isAdmin || isDosen}
       canEdit={canEdit}
-      fixedValues={isDosen ? { dosen_id: myDosenId } : undefined}
+      validate={validate}
     />
   );
 }

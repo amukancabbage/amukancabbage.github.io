@@ -25,7 +25,9 @@ export type SubkategoriPenelitian = {
 
 export type Penelitian = {
   id: number;
-  dosen_id: number;
+  // ketua: salah satu dari dosen_id (daftar dosen) atau ketua_luar (nama bebas)
+  dosen_id: number | null;
+  ketua_luar: string | null;
   sub_kategori_penelitian_id: number;
   judul_penelitian: string;
   tahun: number;
@@ -33,6 +35,8 @@ export type Penelitian = {
   url_bukti: string | null;
   url_dokumen: string | null;
   keterangan: string | null;
+  // akun yang menginput (auth.users.id)
+  created_by: string | null;
   dosen?: Pick<Dosen, 'nama'> | null;
   penelitian_anggota?: { dosen_id: number; dosen: Pick<Dosen, 'nama'> | null }[];
   subkategori_penelitian?: Pick<SubkategoriPenelitian, 'sub_kategori_penelitian' | 'kategori_penelitian'> | null;

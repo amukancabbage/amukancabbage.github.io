@@ -278,11 +278,17 @@ button {
   font-size: 15px;
 }
 
+.checklist-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .checklist {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 4px 16px;
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
   padding: 10px 12px;
   border: 1px solid var(--border);
