@@ -1,56 +1,185 @@
-.nav {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 24px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
-  strong {
+.layout {
+  --sidebar-w: 240px;
+  min-height: 100svh;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-w);
+  overflow-y: auto;
+  background: var(--code-bg);
+  border-right: 1px solid var(--border);
+  padding: 20px 12px;
+  z-index: 20;
+
+  .brand {
+    font-weight: 600;
     color: var(--text-h);
-    margin-right: auto;
+    padding: 0 10px 20px;
   }
 
   a {
+    display: block;
+    padding: 8px 10px;
+    border-radius: 6px;
     color: var(--text);
     text-decoration: none;
-    padding: 4px 10px;
-    border-radius: 6px;
+    font-size: 15px;
+
+    &:hover {
+      color: var(--text-h);
+      background: var(--accent-bg);
+    }
 
     &.active {
       color: var(--accent);
       background: var(--accent-bg);
+      font-weight: 600;
     }
   }
 }
 
-.page {
-  padding: 0 24px 32px;
-  text-align: left;
+.menu-group + .menu-group {
+  margin-top: 16px;
+}
+
+.menu-title {
+  padding: 0 10px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topbar,
+.backdrop {
+  display: none;
+}
+
+.content {
+  margin-left: var(--sidebar-w);
+  padding: 24px 32px 48px;
+  min-width: 0;
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 10px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-h);
+  }
+
+  .menu-toggle {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text-h);
+    padding: 4px 10px;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s;
+
+    &.open {
+      transform: none;
+    }
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 15;
+  }
+
+  .content {
+    margin-left: 0;
+    padding: 16px;
+  }
+}
+
+/* ---------- Halaman ---------- */
+.page h1 {
+  font-size: 28px;
+  letter-spacing: -0.4px;
+  margin: 0 0 20px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  margin-bottom: 20px;
 }
 
 .form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 18px;
 
-  input,
-  select {
-    flex: 1 1 180px;
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text-h);
+
+    &.wide {
+      grid-column: 1 / -1;
+    }
+
+    em {
+      color: #e5484d;
+      font-style: normal;
+    }
   }
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
 }
 
 input,
 select,
+textarea,
 button {
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   padding: 8px 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg);
   color: var(--text-h);
+}
+
+/* select bawaan browser lebih pendek dari input, jadi tingginya dipaksa sama */
+input,
+select {
+  height: 40px;
+  line-height: normal;
+}
+
+textarea {
+  resize: vertical;
 }
 
 button {
@@ -74,7 +203,7 @@ button {
 
 .error {
   color: #e5484d;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .table-wrap {
@@ -84,16 +213,29 @@ button {
 table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 15px;
 
   th,
   td {
-    padding: 10px 12px;
+    padding: 10px 14px;
+    text-align: left;
     border-bottom: 1px solid var(--border);
+    vertical-align: top;
   }
 
   th {
     color: var(--text-h);
     font-weight: 600;
+    white-space: nowrap;
+    background: var(--code-bg);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  a {
+    color: var(--accent);
   }
 }
 
@@ -103,6 +245,6 @@ table {
 
   button {
     padding: 4px 10px;
-    font-size: 14px;
+    font-size: 13px;
   }
 }

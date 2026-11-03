@@ -1,24 +1,22 @@
-import { HashRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import DosenPage from './pages/DosenPage'
-import ProdiPage from './pages/ProdiPage'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
+import Layout from './components/Layout'
+import { menu } from './menu'
 import './App.css'
 
-// HashRouter dipakai agar refresh halaman tidak 404 di GitHub Pages
+const items = menu.flatMap((group) => group.items)
+
+// HashRouter dipakai agar refresh halaman tidak 404 di GitHub Pages / Vercel
 function App() {
   return (
     <HashRouter>
-      <nav className="nav">
-        <strong>Sistem Akademik</strong>
-        <NavLink to="/dosen">Dosen</NavLink>
-        <NavLink to="/prodi">Prodi</NavLink>
-      </nav>
-      <main>
+      <Layout>
         <Routes>
-          <Route path="/" element={<Navigate to="/dosen" replace />} />
-          <Route path="/dosen" element={<DosenPage />} />
-          <Route path="/prodi" element={<ProdiPage />} />
+          <Route path="/" element={<Navigate to={items[0].path} replace />} />
+          {items.map((item) => (
+            <Route key={item.path} path={item.path} element={item.element} />
+          ))}
         </Routes>
-      </main>
+      </Layout>
     </HashRouter>
   )
 }
