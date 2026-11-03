@@ -2,3 +2,6 @@
 node_modules/
 dist/
 .DS_Store
+# data import (berisi password)
+data/
+hasil-import*.csv

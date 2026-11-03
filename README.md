@@ -221,6 +221,62 @@ menginput penelitian.
   - Pemantau tidak melihat form dan tombol aksi.
   - Anggota dipilih dengan checkbox (field `type: 'multiselect'` + `junction`).
 
+### 10. Import akun dosen dari Excel
+
+Untuk membuat banyak akun dosen sekaligus, gunakan script
+[`scripts/import-dosen.mjs`](scripts/import-dosen.mjs). Script ini dijalankan di komputer, bukan di
+web, karena membuat akun login membutuhkan **secret key**.
+
+**a. Siapkan file Excel** dengan judul kolom di baris pertama:
+
+| nama | nidn | email | password | prodi |
+|---|---|---|---|---|
+| Dr. Budi Santoso, M.Kom | 0012345678 | budi@kampus.ac.id | | Teknik Informatika |
+| Siti Aminah, M.T. | 0098765432 | siti@kampus.ac.id | Rahasia123 | |
+
+- `nama`, `nidn`, dan `email` **wajib** diisi. Urutan kolom bebas.
+- `password` opsional. Kalau kosong, password dibuat acak.
+- `prodi` opsional. Kalau diisi, tulisannya harus sama persis dengan data di menu Prodi.
+- Format kolom NIDN sebagai **Text** supaya angka 0 di depan tidak hilang. Script juga
+  otomatis menambahkan 0 di depan jika NIDN kurang dari 10 digit.
+
+**b. Simpan sebagai CSV.** Di Excel pilih **File → Save As → CSV UTF-8 (Comma delimited)**, lalu
+simpan ke folder `data/`, misalnya `data/dosen.csv`. Folder `data/` sudah ada di `.gitignore`,
+jadi tidak akan ikut ter-commit.
+
+**c. Tambahkan secret key ke `.env`.** Ambil dari Supabase → **Project Settings → API Keys → Secret keys**:
+
+```
+SUPABASE_SECRET_KEY=sb_secret_xxxxxxxx
+```
+
+Variabel ini sengaja **tidak** diawali `VITE_`, sehingga Vite tidak memasukkannya ke aplikasi web.
+Jangan menambahkannya ke Environment Variables Vercel.
+
+**d. Cek dulu tanpa menyimpan apa pun (dry run):**
+
+```bash
+npm run import:dosen -- data/dosen.csv --dry-run
+```
+
+Perbaiki baris yang ditandai `✖` di file Excel, lalu simpan ulang sebagai CSV.
+
+**e. Jalankan sungguhan:**
+
+```bash
+npm run import:dosen -- data/dosen.csv
+```
+
+Untuk setiap baris, script akan:
+1. Memakai data dosen dengan NIDN yang sama, atau membuatnya jika belum ada.
+2. Membuat akun login. Jika email sudah terdaftar, akunnya dipakai dan password-nya tidak diubah.
+3. Mengatur role akun menjadi **dosen** dan menghubungkannya ke data dosen tersebut.
+
+Script aman dijalankan ulang: data yang sudah ada tidak akan dibuat dua kali.
+
+**f. Bagikan password.** Hasilnya disimpan di `data/hasil-import.csv`, termasuk password akun
+baru. Bagikan ke masing-masing dosen dengan aman, lalu **hapus file tersebut**.
+
 ---
 
 ## Cara Menambah Halaman Baru
@@ -241,6 +297,9 @@ supabase/
   schema.sql              # tabel prodi & dosen
   penelitian.sql          # tabel kategori, subkategori & penelitian
   auth.sql                # profil/role, anggota penelitian & hak akses (RLS)
+scripts/
+  import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)
+data/                     # file CSV untuk import (tidak di-commit)
 src/
   lib/supabase.ts         # koneksi Supabase
   auth.tsx                # sesi login & profil pengguna
@@ -259,3 +318,4 @@ src/
 - Setelah `auth.sql` dijalankan, data hanya bisa diakses oleh pengguna yang sudah login, sesuai role-nya.
 - Pastikan **Allow new users to sign up** dimatikan (tahap 9b).
 - Jangan pernah memakai **secret key** di frontend. Gunakan publishable/anon key saja.
+  Secret key hanya untuk script import di komputer, disimpan di `.env` sebagai `SUPABASE_SECRET_KEY`.
