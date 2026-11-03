@@ -340,6 +340,33 @@ table {
   }
 }
 
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -8px;
+  font-size: 14px;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 4px;
+
+  button {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    font-size: 14px;
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+  }
+}
+
 .actions {
   display: flex;
   gap: 6px;

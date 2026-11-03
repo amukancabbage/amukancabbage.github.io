@@ -25,6 +25,7 @@ export default function SubkategoriPenelitianPage() {
       table="subkategori_penelitian"
       select="id, sub_kategori_penelitian, kategori_penelitian_id, kategori_penelitian(kategori_penelitian)"
       fields={fields}
+      pageSize={10}
     />
   );
 }

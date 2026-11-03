@@ -21,6 +21,7 @@ export default function DosenPage() {
       table="dosen"
       select="id, nama, nidn, prodi_id, prodi(prodi)"
       fields={fields}
+      pageSize={10}
     />
   );
 }

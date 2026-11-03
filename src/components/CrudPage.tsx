@@ -53,6 +53,8 @@ type Props<T> = {
   fixedValues?: Record<string, unknown>;
   // pemeriksaan sebelum menyimpan; kembalikan pesan error atau null
   validate?: (form: FormValues) => string | null;
+  // jumlah baris per halaman; jika diisi, data diambil per halaman dari server
+  pageSize?: number;
 };
 
 function emptyForm<T>(fields: Field<T>[]): FormValues {
@@ -82,6 +84,7 @@ export default function CrudPage<T extends { id: number | string }>({
   canDelete = canEdit,
   fixedValues,
   validate,
+  pageSize,
 }: Props<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [options, setOptions] = useState<Record<string, Option[]>>({});
@@ -90,17 +93,29 @@ export default function CrudPage<T extends { id: number | string }>({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const formFields = fields.filter((f) => !f.hideInForm);
 
   async function loadRows() {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from(table)
-      .select(select)
+      .select(select, { count: pageSize ? 'exact' : undefined })
       .order(order.column, { ascending: order.ascending ?? true });
+    if (pageSize) query = query.range((page - 1) * pageSize, page * pageSize - 1);
+    const { data, error, count } = await query;
+
+    // halaman melewati data terakhir (mis. setelah hapus): mundur satu halaman.
+    // Supabase mengembalikan error PGRST103 untuk range di luar jumlah data.
+    if (pageSize && page > 1 && (error?.code === 'PGRST103' || data?.length === 0)) {
+      setPage(page - 1);
+      return;
+    }
     setError(error ? errorMessage(error) : null);
     setRows((data as unknown as T[] | null) ?? []);
+    setTotal(count ?? data?.length ?? 0);
     setLoading(false);
   }
 
@@ -120,6 +135,9 @@ export default function CrudPage<T extends { id: number | string }>({
 
   useEffect(() => {
     loadRows();
+  }, [page]);
+
+  useEffect(() => {
     loadOptions();
   }, []);
 
@@ -332,7 +350,7 @@ export default function CrudPage<T extends { id: number | string }>({
             ) : (
               rows.map((row, i) => (
                 <tr key={row.id}>
-                  <td>{i + 1}</td>
+                  <td>{(pageSize ? (page - 1) * pageSize : 0) + i + 1}</td>
                   {columns.map((f) => (
                     <td key={f.name}>{f.render ? f.render(row) : String(row[f.name] ?? '-')}</td>
                   ))}
@@ -356,6 +374,59 @@ export default function CrudPage<T extends { id: number | string }>({
           </tbody>
         </table>
       </div>
+
+      {pageSize && total > 0 && (
+        <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />
+      )}
     </section>
+  );
+}
+
+function Pagination({
+  page,
+  pageSize,
+  total,
+  onChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  const lastPage = Math.max(1, Math.ceil(total / pageSize));
+  // tampilkan paling banyak 5 nomor halaman di sekitar halaman aktif
+  const start = Math.max(1, Math.min(page - 2, lastPage - 4));
+  const pages = Array.from({ length: Math.min(5, lastPage) }, (_, i) => start + i);
+
+  return (
+    <div className="pagination">
+      <span>
+        Menampilkan {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}
+      </span>
+      <div className="pagination-buttons">
+        <button className="secondary" disabled={page === 1} onClick={() => onChange(1)} aria-label="Halaman pertama">
+          «
+        </button>
+        <button className="secondary" disabled={page === 1} onClick={() => onChange(page - 1)} aria-label="Halaman sebelumnya">
+          ‹
+        </button>
+        {pages.map((p) => (
+          <button
+            key={p}
+            className={p === page ? undefined : 'secondary'}
+            aria-current={p === page ? 'page' : undefined}
+            onClick={() => onChange(p)}
+          >
+            {p}
+          </button>
+        ))}
+        <button className="secondary" disabled={page === lastPage} onClick={() => onChange(page + 1)} aria-label="Halaman berikutnya">
+          ›
+        </button>
+        <button className="secondary" disabled={page === lastPage} onClick={() => onChange(lastPage)} aria-label="Halaman terakhir">
+          »
+        </button>
+      </div>
+    </div>
   );
 }
