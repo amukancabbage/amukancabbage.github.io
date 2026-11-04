@@ -20,6 +20,7 @@ export default function DosenPage() {
       title="Dosen"
       table="dosen"
       select="id, nama, nidn, prodi_id, prodi(prodi)"
+      order={[{ column: 'prodi(prodi)' }, { column: 'nama' }]}
       fields={fields}
       pageSize={10}
     />

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 
 export type Option = { value: number | string; label: string };
@@ -37,13 +37,16 @@ export type Field<T> = {
   hideInForm?: boolean;
 };
 
+type OrderBy = { column: string; ascending?: boolean };
+
 type Props<T> = {
   title: string;
   // keterangan singkat di bawah judul
   description?: ReactNode;
   table: string;
   select: string;
-  order?: { column: string; ascending?: boolean };
+  // satu atau beberapa kolom urutan; kolom tabel relasi ditulis 'tabel(kolom)', mis. 'prodi(prodi)'
+  order?: OrderBy | OrderBy[];
   fields: Field<T>[];
   // hak akses; default semua diizinkan
   canCreate?: boolean;
@@ -55,6 +58,11 @@ type Props<T> = {
   validate?: (form: FormValues) => string | null;
   // jumlah baris per halaman; jika diisi, data diambil per halaman dari server
   pageSize?: number;
+  // kolom teks yang dicari (ilike); jika diisi, muncul kotak pencarian di atas tabel
+  searchColumns?: string[];
+  // syarat pencarian tambahan dalam format filter PostgREST, mis. 'dosen_id.in.(1,2)'
+  searchExtra?: (keyword: string) => Promise<string[]>;
+  searchPlaceholder?: string;
 };
 
 function emptyForm<T>(fields: Field<T>[]): FormValues {
@@ -85,6 +93,9 @@ export default function CrudPage<T extends { id: number | string }>({
   fixedValues,
   validate,
   pageSize,
+  searchColumns,
+  searchExtra,
+  searchPlaceholder = 'Cari...',
 }: Props<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [options, setOptions] = useState<Record<string, Option[]>>({});
@@ -95,17 +106,32 @@ export default function CrudPage<T extends { id: number | string }>({
   const [search, setSearch] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
+  // nomor permintaan terakhir; jawaban dari permintaan lama diabaikan
+  const requestId = useRef(0);
 
   const formFields = fields.filter((f) => !f.hideInForm);
 
   async function loadRows() {
+    const current = ++requestId.current;
     setLoading(true);
-    let query = supabase
-      .from(table)
-      .select(select, { count: pageSize ? 'exact' : undefined })
-      .order(order.column, { ascending: order.ascending ?? true });
+    let query = supabase.from(table).select(select, { count: pageSize ? 'exact' : undefined });
+    if (appliedKeyword && searchColumns) {
+      // tanda kutip & backslash dibuang agar tidak merusak sintaks filter .or()
+      const q = appliedKeyword.replace(/["\\]/g, '');
+      const conditions = [
+        ...searchColumns.map((c) => `${c}.ilike."%${q}%"`),
+        ...((await searchExtra?.(q)) ?? []),
+      ];
+      query = query.or(conditions.join(','));
+    }
+    for (const o of Array.isArray(order) ? order : [order]) {
+      query = query.order(o.column, { ascending: o.ascending ?? true });
+    }
     if (pageSize) query = query.range((page - 1) * pageSize, page * pageSize - 1);
     const { data, error, count } = await query;
+    if (current !== requestId.current) return;
 
     // halaman melewati data terakhir (mis. setelah hapus): mundur satu halaman.
     // Supabase mengembalikan error PGRST103 untuk range di luar jumlah data.
@@ -135,7 +161,16 @@ export default function CrudPage<T extends { id: number | string }>({
 
   useEffect(() => {
     loadRows();
-  }, [page]);
+  }, [page, appliedKeyword]);
+
+  // pencarian dijalankan 400 ms setelah berhenti mengetik, dimulai dari halaman 1
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedKeyword(keyword.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [keyword]);
 
   useEffect(() => {
     loadOptions();
@@ -327,6 +362,19 @@ export default function CrudPage<T extends { id: number | string }>({
 
       {error && <p className="error">{error}</p>}
 
+      {searchColumns && (
+        <div className="table-toolbar">
+          <input
+            type="search"
+            className="search-input"
+            placeholder={searchPlaceholder}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+          />
+          {appliedKeyword && !loading && <span className="muted">{total} hasil</span>}
+        </div>
+      )}
+
       <div className="card table-wrap">
         <table>
           <thead>
@@ -345,7 +393,9 @@ export default function CrudPage<T extends { id: number | string }>({
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={colSpan}>Belum ada data</td>
+                <td colSpan={colSpan}>
+                  {appliedKeyword ? `Tidak ada hasil untuk "${appliedKeyword}"` : 'Belum ada data'}
+                </td>
               </tr>
             ) : (
               rows.map((row, i) => (

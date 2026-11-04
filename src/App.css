@@ -442,6 +442,19 @@ table {
   }
 }
 
+.table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search-input {
+  flex: 0 1 360px;
+  min-width: 0;
+}
+
 .pagination {
   display: flex;
   flex-wrap: wrap;

@@ -1,4 +1,5 @@
 import { useProfile } from '../auth';
+import { supabase } from '../lib/supabase';
 import CrudPage, { type Field, type FormValues } from './CrudPage';
 
 // Halaman bersama untuk kegiatan dosen yang punya ketua, tim, dan subkategori
@@ -161,6 +162,25 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
   const canEdit = (k: Kegiatan) =>
     isAdmin || (isDosen && (k.dosen_id === myDosenId || k.created_by === profile.id));
 
+  // pencarian nama dosen (ketua/anggota) dan tahun, di luar kolom teks searchColumns
+  async function searchExtra(keyword: string) {
+    const conditions: string[] = [];
+    if (/^\d{4}$/.test(keyword)) conditions.push(`tahun.eq.${keyword}`);
+
+    const { data: dosen } = await supabase.from('dosen').select('id').ilike('nama', `%${keyword}%`);
+    const dosenIds = (dosen ?? []).map((d) => d.id);
+    if (dosenIds.length === 0) return conditions;
+    conditions.push(`dosen_id.in.(${dosenIds.join(',')})`);
+
+    const { data: anggota } = await supabase
+      .from(`${table}_anggota`)
+      .select(`${table}_id`)
+      .in('dosen_id', dosenIds);
+    const kegiatanIds = [...new Set((anggota ?? []).map((a: any) => a[`${table}_id`]))];
+    if (kegiatanIds.length > 0) conditions.push(`id.in.(${kegiatanIds.join(',')})`);
+    return conditions;
+  }
+
   // dosen!dosen_id = ketua; perlu petunjuk karena dosen juga terhubung lewat tabel anggota
   const select = [
     '*',
@@ -181,6 +201,10 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       canCreate={isAdmin || isDosen}
       canEdit={canEdit}
       validate={validate}
+      pageSize={10}
+      searchColumns={[`judul_${table}`, 'publikasi', 'keterangan', 'ketua_luar']}
+      searchExtra={searchExtra}
+      searchPlaceholder="Cari judul, nama dosen, publikasi, atau tahun..."
     />
   );
 }
