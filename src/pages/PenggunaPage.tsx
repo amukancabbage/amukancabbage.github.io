@@ -33,6 +33,7 @@ export default function PenggunaPage() {
       fields={fields}
       canCreate={false}
       canDelete={() => false}
+      pageSize={10}
     />
   );
 }

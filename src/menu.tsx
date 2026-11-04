@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import BerandaPage from './pages/BerandaPage';
 import DosenPage from './pages/DosenPage';
 import KategoriPenelitianPage from './pages/KategoriPenelitianPage';
 import KategoriPengabdianPage from './pages/KategoriPengabdianPage';
@@ -19,6 +20,10 @@ const admin: Role[] = ['admin'];
 // Tambahkan halaman baru di sini; sidebar dan routing ikut otomatis.
 // `roles` menentukan siapa saja yang bisa melihat menu tersebut.
 export const menu: MenuGroup[] = [
+  {
+    title: 'Utama',
+    items: [{ path: '/beranda', label: 'Beranda', element: <BerandaPage />, roles: semua }],
+  },
   {
     title: 'Penelitian',
     items: [

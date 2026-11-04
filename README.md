@@ -10,6 +10,7 @@ Aplikasi web untuk mengelola data akademik (dosen, prodi, penelitian), dibuat de
 
 | Menu | Halaman | Tabel |
 |---|---|---|
+| Utama | Beranda | rekap dari fungsi `rekap_kegiatan()` |
 | Penelitian | Data Penelitian | `penelitian` + `penelitian_anggota` (penelitian_id, dosen_id) |
 | Pengabdian | Data Pengabdian | `pengabdian` + `pengabdian_anggota` (kolom sama seperti penelitian, dengan `judul_pengabdian`) |
 | Pengabdian | Kategori | `kategori_pengabdian` (id, kategori_pengabdian) |
@@ -77,6 +78,7 @@ npm install @supabase/supabase-js react-router-dom
    4. [`supabase/tim-penelitian.sql`](supabase/tim-penelitian.sql): kolom penginput dan aturan akses untuk tim (lihat tahap 11)
    5. [`supabase/ketua-luar.sql`](supabase/ketua-luar.sql): ketua dari luar daftar dosen (lihat tahap 12)
    6. [`supabase/pengabdian.sql`](supabase/pengabdian.sql): modul pengabdian lengkap (lihat tahap 13)
+   7. [`supabase/beranda.sql`](supabase/beranda.sql): fungsi rekap untuk Beranda (lihat tahap 14)
 
    Urutannya penting karena setiap file merujuk ke tabel dari file sebelumnya.
 
@@ -348,6 +350,33 @@ Jadi kegiatan baru dengan pola yang sama (misalnya **publikasi** atau **HKI**) c
    ```
 3. Daftarkan halaman data, kategori, dan subkategorinya di `src/menu.tsx`.
 
+### 14. Beranda: rekap per program studi
+
+Beranda adalah halaman pertama setelah login, untuk semua role. Isinya:
+
+- **Total** penelitian dan pengabdian.
+- Jumlah penelitian dan pengabdian **per program studi** (Teknik Informatika, Sistem Informasi, dan prodi lain yang ada di tabel `prodi`).
+- Filter **tahun**.
+
+Jalankan [`supabase/beranda.sql`](supabase/beranda.sql) di SQL Editor. File ini membuat dua fungsi:
+
+- `rekap_kegiatan(p_tahun)`: jumlah per prodi ditambah satu baris total.
+- `tahun_kegiatan()`: daftar tahun yang punya data, untuk pilihan filter.
+
+**Aturan penghitungan:**
+
+- Sebuah kegiatan dihitung untuk suatu prodi jika **ketua atau salah satu anggota timnya** adalah dosen
+  prodi tersebut.
+- Kegiatan dengan tim lintas prodi terhitung di setiap prodi yang terlibat. Karena itu, jumlah TI + SI
+  bisa lebih besar dari total, sedangkan total menghitung setiap kegiatan satu kali.
+- Ketua dari luar daftar dosen tidak punya prodi, jadi kegiatannya dihitung lewat prodi anggotanya.
+
+Kedua fungsi bersifat `security definer`. Dengan begitu, semua user yang login, termasuk dosen, melihat
+angka rekap seluruh kampus, tetapi tetap tidak bisa melihat isi kegiatan yang bukan miliknya.
+
+Halamannya ada di [`src/pages/BerandaPage.tsx`](src/pages/BerandaPage.tsx). Data diambil dengan
+`supabase.rpc('rekap_kegiatan', { p_tahun })`.
+
 ---
 
 ## Cara Menambah Halaman Baru
@@ -371,6 +400,7 @@ supabase/
   tim-penelitian.sql      # penginput penelitian & ketua dipilih dari tim
   ketua-luar.sql          # ketua dari luar daftar dosen
   pengabdian.sql          # modul pengabdian (tabel + hak akses)
+  beranda.sql             # fungsi rekap per prodi untuk Beranda
 scripts/
   import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)
 data/                     # file CSV untuk import (tidak di-commit)

@@ -184,6 +184,108 @@
   margin: 0 0 20px;
 }
 
+.muted {
+  color: var(--text);
+  font-size: 15px;
+}
+
+/* ---------- Beranda ---------- */
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+
+  h1 {
+    margin-bottom: 4px;
+  }
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-h);
+
+  select {
+    min-width: 160px;
+  }
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.stat {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: var(--bg);
+}
+
+.stat-label {
+  font-size: 14px;
+}
+
+.stat-value {
+  font-size: 40px;
+  line-height: 1.1;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.prodi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.prodi-card {
+  padding: 18px;
+  margin-bottom: 0;
+
+  h3 {
+    margin: 0 0 12px;
+    font-size: 17px;
+    color: var(--text-h);
+  }
+
+  .stats {
+    margin-bottom: 0;
+  }
+
+  .stat {
+    background: var(--code-bg);
+    border-color: transparent;
+  }
+
+  .stat-value {
+    font-size: 32px;
+  }
+}
+
+.footnote {
+  margin-top: 20px;
+  font-size: 13px;
+  max-width: 70ch;
+}
+
 .card {
   border: 1px solid var(--border);
   border-radius: 10px;
