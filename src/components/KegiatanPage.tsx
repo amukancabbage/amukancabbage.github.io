@@ -15,6 +15,11 @@ export type Kegiatan = {
   ketua_luar: string | null;
   tahun: number;
   publikasi: string | null;
+  skema: string | null;
+  biaya: number | null;
+  // anggota di luar daftar dosen & NIM mahasiswa, masing-masing dipisah titik koma
+  anggota_luar: string | null;
+  anggota_mahasiswa: string | null;
   url_bukti: string | null;
   url_dokumen: string | null;
   keterangan: string | null;
@@ -55,6 +60,16 @@ const isKetuaLuar = (form: FormValues) => form.dosen_id === KETUA_LUAR;
 function namaKetua(k: Kegiatan) {
   if (k.dosen?.nama) return k.dosen.nama;
   return k.ketua_luar ? `${k.ketua_luar} (luar)` : '-';
+}
+
+const rupiah = (n: number | null) => (n == null ? '-' : `Rp${n.toLocaleString('id-ID')}`);
+
+function namaAnggota(k: Kegiatan) {
+  const nama = [
+    ...(k.anggota ?? []).map((a) => a.dosen?.nama),
+    ...(k.anggota_luar ?? '').split(';').map((n) => n.trim() && `${n.trim()} (luar)`),
+  ].filter(Boolean);
+  return nama.join(', ') || '-';
 }
 
 const namaSub = (s: { nama: string; kategori: { nama: string } | null } | null | undefined) =>
@@ -132,10 +147,18 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       hideInTable: true,
     },
     {
+      name: 'anggota_luar',
+      label: 'Anggota di luar daftar dosen (pisahkan dengan ;)',
+      wide: true,
+      hideInTable: true,
+    },
+    { name: 'anggota_mahasiswa', label: 'NIM Anggota Mahasiswa (pisahkan dengan ;)', wide: true, hideInTable: true },
+    { name: 'skema', label: 'Skema Hibah', wide: true },
+    { name: 'biaya', label: 'Biaya (Rp)', type: 'number', render: (k) => rupiah(k.biaya) },
+    {
       name: `${subColumn}_id`,
-      label: 'Subkategori',
+      label: 'Subkategori Luaran',
       type: 'select',
-      required: true,
       source: {
         table: subTable,
         select: `id, nama:${subColumn}, kategori:${kategoriTable}(nama:${kategoriTable})`,
@@ -151,7 +174,7 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       name: 'id',
       label: 'Anggota',
       hideInForm: true,
-      render: (k) => (k.anggota ?? []).map((a) => a.dosen?.nama).join(', ') || '-',
+      render: namaAnggota,
     },
     { name: 'url_bukti', label: 'URL Bukti', type: 'url', render: (k) => link(k.url_bukti) },
     { name: 'url_dokumen', label: 'URL Dokumen', type: 'url', render: (k) => link(k.url_dokumen) },
@@ -202,9 +225,17 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       canEdit={canEdit}
       validate={validate}
       pageSize={10}
-      searchColumns={[`judul_${table}`, 'publikasi', 'keterangan', 'ketua_luar']}
+      searchColumns={[
+        `judul_${table}`,
+        'publikasi',
+        'keterangan',
+        'ketua_luar',
+        'anggota_luar',
+        'anggota_mahasiswa',
+        'skema',
+      ]}
       searchExtra={searchExtra}
-      searchPlaceholder="Cari judul, nama dosen, publikasi, atau tahun..."
+      searchPlaceholder="Cari judul, nama dosen, skema, NIM, atau tahun..."
     />
   );
 }

@@ -377,6 +377,35 @@ angka rekap seluruh kampus, tetapi tetap tidak bisa melihat isi kegiatan yang bu
 Halamannya ada di [`src/pages/BerandaPage.tsx`](src/pages/BerandaPage.tsx). Data diambil dengan
 `supabase.rpc('rekap_kegiatan', { p_tahun })`.
 
+### 15. Data hibah dan import dari Excel
+
+Penelitian dan pengabdian punya kolom tambahan untuk data hibah (mis. hibah internal APBU):
+
+| Kolom | Isi |
+| --- | --- |
+| `skema` | skema hibah, mis. "Penelitian Dosen Pemula APBU UNISKA T.A 2024/2025" |
+| `biaya` | dana hibah dalam rupiah (angka saja) |
+| `anggota_luar` | anggota yang tidak ada di daftar dosen, dipisah `;` |
+| `anggota_mahasiswa` | NIM anggota mahasiswa, dipisah `;` |
+
+Subkategori (jenis luaran) sekarang opsional, karena data hibah belum tentu punya luaran.
+
+1. Jalankan [`supabase/hibah.sql`](supabase/hibah.sql) di SQL Editor.
+2. Simpan sheet Excel sebagai CSV di folder `data/`, misalnya `data/kegiatan.csv`. Kolom yang dibaca:
+   `Jenis` (Penelitian/Pengabdian), `Tahun`, `Judul`, `Ketua`, serta opsional `Skema`, `Biaya`,
+   `Anggota`, dan `Anggota Mahasiswa`. Kolom lain, misalnya `Prodi` dan `Peran Dosen FTI`, diabaikan.
+   Format dosen: `NAMA (NIDN)`, beberapa orang dipisah `;`.
+3. Cek dulu, lalu jalankan:
+   ```bash
+   npm run import:kegiatan -- data/kegiatan.csv --dry-run
+   npm run import:kegiatan -- data/kegiatan.csv
+   ```
+
+Dosen dicocokkan lewat **NIDN**, jadi perbedaan penulisan nama tidak masalah. Ketua yang tidak ada di
+daftar dosen disimpan sebagai ketua luar, dan anggota yang tidak ada disimpan di `anggota_luar`.
+Baris dengan jenis, tahun, dan judul yang sudah ada dilewati, sehingga script aman dijalankan ulang.
+Rincian per baris disimpan di `data/hasil-import-kegiatan.csv`.
+
 ---
 
 ## Cara Menambah Halaman Baru
@@ -401,8 +430,11 @@ supabase/
   ketua-luar.sql          # ketua dari luar daftar dosen
   pengabdian.sql          # modul pengabdian (tabel + hak akses)
   beranda.sql             # fungsi rekap per prodi untuk Beranda
+  hibah.sql               # kolom skema, biaya, anggota luar & mahasiswa
 scripts/
+  csv.mjs                 # fungsi bersama pembaca CSV
   import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)
+  import-kegiatan.mjs     # import data hibah penelitian & pengabdian dari CSV
 data/                     # file CSV untuk import (tidak di-commit)
 src/
   lib/supabase.ts         # koneksi Supabase
