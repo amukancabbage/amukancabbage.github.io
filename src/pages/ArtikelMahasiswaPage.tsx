@@ -10,6 +10,8 @@ type ArtikelMahasiswa = {
   jenis_artikel: string;
   tahun: number | null;
   publisher: string | null;
+  url_bukti: string | null;
+  url_dokumen: string | null;
   // [{ npm, nama }]
   anggota_mahasiswa: RowValues[];
   created_by: string | null;
@@ -24,6 +26,16 @@ const jenisArtikel = [
   'Jurnal Nasional',
   'Jurnal Internasional',
 ].map((j) => ({ value: j, label: j }));
+
+function link(url: string | null) {
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer">
+      Buka
+    </a>
+  ) : (
+    '-'
+  );
+}
 
 const namaMahasiswa = (m: RowValues) => (m.npm ? `${m.nama} (${m.npm})` : m.nama);
 
@@ -75,6 +87,8 @@ export default function ArtikelMahasiswaPage() {
       lockedValues: isDosen ? [String(myDosenId)] : undefined,
       render: (a) => (a.anggota_dosen ?? []).map((d) => d.dosen?.nama).join(', ') || '-',
     },
+    { name: 'url_bukti', label: 'URL Bukti', type: 'url', render: (a) => link(a.url_bukti) },
+    { name: 'url_dokumen', label: 'URL Dokumen', type: 'url', render: (a) => link(a.url_dokumen) },
   ];
 
   // admin: semua; dosen: yang ia input atau ia menjadi anggota dosennya; pemantau: hanya melihat

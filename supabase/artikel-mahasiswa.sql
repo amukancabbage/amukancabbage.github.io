@@ -23,9 +23,11 @@ create table if not exists public.artikel_mahasiswa_dosen (
   primary key (artikel_mahasiswa_id, dosen_id)
 );
 
--- tahun ditambahkan setelah tabel dibuat; aman dijalankan ulang
+-- kolom yang ditambahkan setelah tabel dibuat; aman dijalankan ulang
 alter table public.artikel_mahasiswa
-  add column if not exists tahun smallint check (tahun between 1900 and 2100);
+  add column if not exists tahun smallint check (tahun between 1900 and 2100),
+  add column if not exists url_bukti text,
+  add column if not exists url_dokumen text;
 
 create index if not exists artikel_mahasiswa_dosen_dosen_idx on public.artikel_mahasiswa_dosen (dosen_id);
 

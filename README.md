@@ -414,6 +414,7 @@ Menu **Mahasiswa › Artikel Mahasiswa** untuk mencatat artikel karya mahasiswa:
 - Jenis artikel: Conference Nasional/Internasional dan Jurnal Nasional/Internasional. Daftar pilihannya ada
   di `jenisArtikel` pada [`src/pages/ArtikelMahasiswaPage.tsx`](src/pages/ArtikelMahasiswaPage.tsx).
 - Tahun dan publisher.
+- URL bukti dan URL dokumen.
 - Anggota mahasiswa (NPM dan nama, bisa banyak), disimpan sebagai array JSON di kolom `anggota_mahasiswa`.
 - Anggota dosen (bisa banyak), disimpan di tabel `artikel_mahasiswa_dosen`.
 
