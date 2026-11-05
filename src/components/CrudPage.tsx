@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { supabase } from '../lib/supabase';
 
 export type Option = { value: number | string; label: string };
-export type FormValues = Record<string, string | string[]>;
+export type RowValues = Record<string, string>;
+export type FormValues = Record<string, string | string[] | RowValues[]>;
 
 export type Field<T> = {
   name: keyof T & string;
   label: string;
-  type?: 'text' | 'number' | 'url' | 'textarea' | 'select' | 'multiselect';
+  type?: 'text' | 'number' | 'url' | 'textarea' | 'select' | 'multiselect' | 'rows';
   required?: boolean;
   // lebar penuh di form
   wide?: boolean;
@@ -31,6 +32,9 @@ export type Field<T> = {
   getValues?: (row: T) => (number | string)[];
   // untuk 'multiselect': nilai yang selalu tercentang dan tidak bisa dihapus
   lockedValues?: string[];
+  // untuk 'rows': daftar isian per baris, disimpan sebagai array objek di kolom jsonb
+  // contoh: [{ name: 'npm', label: 'NPM' }, { name: 'nama', label: 'Nama', required: true }]
+  rowFields?: { name: string; label: string; required?: boolean }[];
   // tampilan kolom di tabel; default menampilkan nilai field apa adanya
   render?: (row: T) => ReactNode;
   hideInTable?: boolean;
@@ -67,7 +71,10 @@ type Props<T> = {
 
 function emptyForm<T>(fields: Field<T>[]): FormValues {
   return Object.fromEntries(
-    fields.map((f) => [f.name, f.type === 'multiselect' ? [...(f.lockedValues ?? [])] : '']),
+    fields.map((f) => [
+      f.name,
+      f.type === 'multiselect' ? [...(f.lockedValues ?? [])] : f.type === 'rows' ? [] : '',
+    ]),
   );
 }
 
@@ -176,6 +183,13 @@ export default function CrudPage<T extends { id: number | string }>({
     loadOptions();
   }, []);
 
+  // baris yang semua isiannya kosong tidak disimpan
+  function toRows(f: Field<T>, rows: RowValues[]) {
+    return rows
+      .map((r) => Object.fromEntries(f.rowFields!.map((c) => [c.name, (r[c.name] ?? '').trim()])))
+      .filter((r) => Object.values(r).some((v) => v !== ''));
+  }
+
   function toValue(f: Field<T>, raw: string) {
     const value = raw.trim();
     if (value === '') return null;
@@ -196,7 +210,14 @@ export default function CrudPage<T extends { id: number | string }>({
       ...Object.fromEntries(
         formFields
           .filter((f) => f.type !== 'multiselect')
-          .map((f) => [f.name, isShown(f) ? toValue(f, form[f.name] as string) : null]),
+          .map((f) => [
+            f.name,
+            f.type === 'rows'
+              ? toRows(f, form[f.name] as RowValues[])
+              : isShown(f)
+                ? toValue(f, form[f.name] as string)
+                : null,
+          ]),
       ),
       ...fixedValues,
     };
@@ -211,18 +232,33 @@ export default function CrudPage<T extends { id: number | string }>({
       id = data.id;
     }
 
-    // simpan relasi banyak-ke-banyak: hapus yang lama, masukkan yang baru
+    // simpan relasi banyak-ke-banyak: hapus yang tidak dipilih lagi, tambah yang baru dipilih.
+    // Baris yang tetap dipilih tidak disentuh, sehingga hak akses yang bergantung pada
+    // tabel penghubung (mis. dosen anggota boleh mengubah) tetap berlaku selama menyimpan.
     for (const f of formFields.filter((f) => f.junction)) {
       const j = f.junction!;
-      const del = await supabase.from(j.table).delete().eq(j.foreignKey, id);
-      if (del.error) return setError(errorMessage(del.error));
       const excluded = j.exclude ? form[j.exclude] : undefined;
       const values = (form[f.name] as string[]).filter((v) => v !== excluded);
-      if (values.length === 0) continue;
-      const ins = await supabase
-        .from(j.table)
-        .insert(values.map((v) => ({ [j.foreignKey]: id, [j.valueKey]: toValue(f, v) })));
-      if (ins.error) return setError(errorMessage(ins.error));
+      const existing = await supabase.from(j.table).select(j.valueKey).eq(j.foreignKey, id);
+      if (existing.error) return setError(errorMessage(existing.error));
+      const old = (existing.data as any[]).map((r) => String(r[j.valueKey]));
+
+      const removed = old.filter((v) => !values.includes(v));
+      if (removed.length > 0) {
+        const del = await supabase
+          .from(j.table)
+          .delete()
+          .eq(j.foreignKey, id)
+          .in(j.valueKey, removed.map((v) => toValue(f, v)));
+        if (del.error) return setError(errorMessage(del.error));
+      }
+      const added = values.filter((v) => !old.includes(v));
+      if (added.length > 0) {
+        const ins = await supabase
+          .from(j.table)
+          .insert(added.map((v) => ({ [j.foreignKey]: id, [j.valueKey]: toValue(f, v) })));
+        if (ins.error) return setError(errorMessage(ins.error));
+      }
     }
 
     setError(null);
@@ -238,7 +274,11 @@ export default function CrudPage<T extends { id: number | string }>({
           f.name,
           f.type === 'multiselect'
             ? [...new Set([...(f.getValues?.(row) ?? []).map(String), ...(f.lockedValues ?? [])])]
-            : (f.getValue?.(row) ?? String(row[f.name] ?? '')),
+            : f.type === 'rows'
+              ? ((row[f.name] as RowValues[] | null) ?? []).map((r) =>
+                  Object.fromEntries(f.rowFields!.map((c) => [c.name, String(r[c.name] ?? '')])),
+                )
+              : (f.getValue?.(row) ?? String(row[f.name] ?? '')),
         ]),
       ),
     );
@@ -258,6 +298,44 @@ export default function CrudPage<T extends { id: number | string }>({
   }
 
   function renderInput(f: Field<T>) {
+    if (f.type === 'rows') {
+      const list = form[f.name] as RowValues[];
+      const cols = f.rowFields!;
+      const setList = (next: RowValues[]) => setForm({ ...form, [f.name]: next });
+      const blank = () => Object.fromEntries(cols.map((c) => [c.name, '']));
+      return (
+        <div className="row-list">
+          {list.map((r, i) => (
+            <div key={i} className="row-item">
+              {cols.map((c) => (
+                <input
+                  key={c.name}
+                  placeholder={c.label}
+                  aria-label={`${c.label} ${i + 1}`}
+                  value={r[c.name] ?? ''}
+                  required={c.required}
+                  onChange={(e) =>
+                    setList(list.map((x, k) => (k === i ? { ...x, [c.name]: e.target.value } : x)))
+                  }
+                />
+              ))}
+              <button
+                type="button"
+                className="danger"
+                aria-label={`Hapus baris ${i + 1}`}
+                onClick={() => setList(list.filter((_, k) => k !== i))}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" className="secondary" onClick={() => setList([...list, blank()])}>
+            + Tambah {f.label}
+          </button>
+        </div>
+      );
+    }
+
     if (f.type === 'multiselect') {
       const selected = form[f.name] as string[];
       const locked = f.lockedValues ?? [];
@@ -336,19 +414,30 @@ export default function CrudPage<T extends { id: number | string }>({
 
       {showForm && (
         <form className="card form" onSubmit={handleSubmit}>
-          {formFields.filter(isShown).map((f) => (
-            <label
-              key={f.name}
-              htmlFor={f.type === 'multiselect' ? undefined : f.name}
-              className={f.wide ? 'wide' : undefined}
-            >
+          {formFields.filter(isShown).map((f) => {
+            const caption = (
               <span>
                 {f.label}
                 {f.required && <em> *</em>}
               </span>
-              {renderInput(f)}
-            </label>
-          ))}
+            );
+            // 'rows' berisi tombol, jadi tidak dibungkus <label> agar klik judul tidak menekan tombol
+            return f.type === 'rows' ? (
+              <div key={f.name} className={`field${f.wide ? ' wide' : ''}`}>
+                {caption}
+                {renderInput(f)}
+              </div>
+            ) : (
+              <label
+                key={f.name}
+                htmlFor={f.type === 'multiselect' ? undefined : f.name}
+                className={f.wide ? 'wide' : undefined}
+              >
+                {caption}
+                {renderInput(f)}
+              </label>
+            );
+          })}
           <div className="form-actions">
             <button type="submit">{editId != null ? 'Simpan Perubahan' : 'Tambah'}</button>
             {editId != null && (

@@ -406,6 +406,30 @@ daftar dosen disimpan sebagai ketua luar, dan anggota yang tidak ada disimpan di
 Baris dengan jenis, tahun, dan judul yang sudah ada dilewati, sehingga script aman dijalankan ulang.
 Rincian per baris disimpan di `data/hasil-import-kegiatan.csv`.
 
+### 16. Artikel mahasiswa
+
+Menu **Mahasiswa › Artikel Mahasiswa** untuk mencatat artikel karya mahasiswa:
+
+- Judul artikel, NPM (boleh kosong), dan nama mahasiswa penulis.
+- Jenis artikel: Conference Nasional/Internasional dan Jurnal Nasional/Internasional. Daftar pilihannya ada
+  di `jenisArtikel` pada [`src/pages/ArtikelMahasiswaPage.tsx`](src/pages/ArtikelMahasiswaPage.tsx).
+- Tahun dan publisher.
+- Anggota mahasiswa (NPM dan nama, bisa banyak), disimpan sebagai array JSON di kolom `anggota_mahasiswa`.
+- Anggota dosen (bisa banyak), disimpan di tabel `artikel_mahasiswa_dosen`.
+
+Jalankan [`supabase/artikel-mahasiswa.sql`](supabase/artikel-mahasiswa.sql) di SQL Editor.
+
+Hak akses: admin mengelola semua artikel. Dosen menambah artikel dan otomatis tercatat sebagai anggota
+dosen, lalu bisa melihat dan mengubah artikel yang ia input atau yang mencantumkan namanya. Pemantau hanya
+melihat.
+
+Isian "bisa banyak" dengan beberapa kolom per baris memakai tipe field `rows` di `CrudPage`:
+
+```tsx
+{ name: 'anggota_mahasiswa', label: 'Anggota Mahasiswa', type: 'rows',
+  rowFields: [{ name: 'npm', label: 'NPM' }, { name: 'nama', label: 'Nama', required: true }] }
+```
+
 ---
 
 ## Cara Menambah Halaman Baru
@@ -431,6 +455,7 @@ supabase/
   pengabdian.sql          # modul pengabdian (tabel + hak akses)
   beranda.sql             # fungsi rekap per prodi untuk Beranda
   hibah.sql               # kolom skema, biaya, anggota luar & mahasiswa
+  artikel-mahasiswa.sql   # tabel artikel mahasiswa & hak akses
 scripts/
   csv.mjs                 # fungsi bersama pembaca CSV
   import-dosen.mjs        # import akun dosen dari CSV (dijalankan di komputer)

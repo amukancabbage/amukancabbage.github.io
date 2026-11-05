@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import ArtikelMahasiswaPage from './pages/ArtikelMahasiswaPage';
 import BerandaPage from './pages/BerandaPage';
 import DosenPage from './pages/DosenPage';
 import KategoriPenelitianPage from './pages/KategoriPenelitianPage';
@@ -38,6 +39,12 @@ export const menu: MenuGroup[] = [
       { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
       { path: '/kategori-pengabdian', label: 'Kategori', element: <KategoriPengabdianPage />, roles: admin },
       { path: '/subkategori-pengabdian', label: 'Subkategori', element: <SubkategoriPengabdianPage />, roles: admin },
+    ],
+  },
+  {
+    title: 'Mahasiswa',
+    items: [
+      { path: '/artikel-mahasiswa', label: 'Artikel Mahasiswa', element: <ArtikelMahasiswaPage />, roles: semua },
     ],
   },
   {

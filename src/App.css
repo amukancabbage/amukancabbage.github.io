@@ -299,7 +299,8 @@
   gap: 14px;
   padding: 18px;
 
-  label {
+  > label,
+  > .field {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -378,6 +379,24 @@ button {
   background: var(--accent-bg);
   color: var(--text-h);
   font-size: 15px;
+}
+
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.row-item {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .checklist-wrap {
