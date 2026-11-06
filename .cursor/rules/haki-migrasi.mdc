@@ -1,0 +1,24 @@
+---
+description: Integrasi proses bisnis Arsip HAKI ke Sistem Akademik — wajib diikuti agent
+alwaysApply: true
+---
+
+# Migrasi HAKI → Sistem Akademik
+
+Sebelum menambah/mengubah fitur HAKI/HKI/kekayaan intelektual:
+
+1. Baca `AGENTS.md` dan `docs/haki-migrasi/README.md`.
+2. Untuk alur status/validasi: `docs/haki-migrasi/PROSES-BISNIS.md`.
+3. Untuk role/visibilitas: `docs/haki-migrasi/PERAN-AKSES.md`.
+4. Untuk field/enum: `docs/haki-migrasi/DOMAIN-DATA.md`.
+5. Sebelum klaim selesai: centang `docs/haki-migrasi/CHECKLIST.md`.
+
+## Larangan singkat
+
+- Jangan treat HAKI sebagai salinan `KegiatanPage` tanpa workflow, berkas, AI, dan validasi.
+- Jangan menambah `tgl_sertifikat`.
+- Jangan beri `super_admin` akses otomatis ke semua dokumen (di sumber: tidak otomatis melihat semua rekaman).
+- Jangan anggap status `disarankan` = boleh lihat dokumen (hanya kartu konfirmasi).
+- Jangan biarkan hanya UI yang membatasi aksi — wajib RLS/policy.
+
+Sumber kode referensi: `C:\Users\edyar\Downloads\app_haki`.

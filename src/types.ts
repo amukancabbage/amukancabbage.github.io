@@ -37,12 +37,31 @@ export type SubkategoriPengabdian = {
 
 // Penelitian & pengabdian memakai tipe Kegiatan di src/components/KegiatanPage.tsx
 
-export type Role = 'admin' | 'dosen' | 'pemantau';
+export type Role = 'admin' | 'dosen' | 'pemantau' | 'validator' | 'operator';
+
+export const roleLabel: Record<Role, string> = {
+  admin: 'Admin',
+  dosen: 'Dosen',
+  validator: 'Validator HKI',
+  operator: 'Operator',
+  pemantau: 'Pemantau',
+};
+
+export type Unit = {
+  id: number;
+  nama: string;
+  tipe: 'universitas' | 'fakultas' | 'prodi';
+  parent_id: number | null;
+  parent?: Pick<Unit, 'nama'> | null;
+};
 
 export type Profile = {
   id: string;
   email: string | null;
   role: Role;
   dosen_id: number | null;
+  unit_id: number | null;
+  privacy_notice_accepted_at: string | null;
   dosen?: Pick<Dosen, 'nama'> | null;
+  unit?: Pick<Unit, 'nama'> | null;
 };

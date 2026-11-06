@@ -8,11 +8,16 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:db": "npx supabase test db",
+    "test:fn": "npx -y deno test supabase/functions/_shared",
+    "mock:ai": "node scripts/mock-openrouter.mjs",
+    "uji:ai": "node --env-file=.env scripts/uji-ai.mjs",
     "import:dosen": "node --env-file=.env scripts/import-dosen.mjs",
     "import:kegiatan": "node --env-file=.env scripts/import-kegiatan.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"

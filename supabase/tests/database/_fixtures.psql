@@ -1,0 +1,178 @@
+-- Fixture bersama untuk tes per peran. Di-include lewat `\ir _fixtures.psql`
+-- di dalam transaksi tiap file tes, jadi semua data ikut di-rollback.
+--
+-- Unit:    TU Universitas > TU Fakultas A > TU Prodi A
+--                         > TU Fakultas B > TU Prodi B
+-- Dosen:   owner, coauthor (Prodi A), outsider (Prodi B)
+-- Akun:    owner, coauthor, outsider (dosen), val_a, val_b (validator fakultas),
+--          op_a, op_b (operator prodi), pemantau, admin
+-- Dokumen: wip  (owner, NEEDS_VERIFICATION)
+--          sub, sub2 (owner, SUBMITTED)
+--          arc  (owner, ARCHIVED, no. sertifikat TU-ARC-1)
+--          osub (outsider, SUBMITTED)
+-- coauthor tercantum sebagai pencipta berstatus `disarankan` di semua dokumen owner.
+
+create extension if not exists pgtap with schema extensions;
+
+create schema tests;
+grant usage on schema tests to authenticated, anon;
+
+create table tests.users (k text primary key, id uuid not null);
+create table tests.records (k text primary key, id uuid not null);
+grant select on tests.users, tests.records to authenticated;
+
+create function tests.uid(p_k text) returns uuid language sql stable as $$
+  select id from tests.users where k = p_k;
+$$;
+
+create function tests.rid(p_k text) returns uuid language sql stable as $$
+  select id from tests.records where k = p_k;
+$$;
+
+-- dibaca tanpa RLS agar tes bisa memeriksa efek aksi yang tidak terlihat oleh pelaku
+create function tests.versi(p_k text) returns integer language sql stable security definer set search_path = '' as $$
+  select r.versi from public.hki_records r join tests.records t on t.id = r.id where t.k = p_k;
+$$;
+
+create function tests.status(p_k text) returns text language sql stable security definer set search_path = '' as $$
+  select r.workflow_status from public.hki_records r join tests.records t on t.id = r.id where t.k = p_k;
+$$;
+
+create function tests.person_id(p_k text, p_dosen bigint) returns bigint language sql stable security definer set search_path = '' as $$
+  select p.id from public.hki_persons p join tests.records t on t.id = p.record_id
+  where t.k = p_k and p.dosen_id = p_dosen;
+$$;
+
+-- login sebagai akun fixture (role authenticated + JWT sub)
+create function tests.login(p_k text) returns void language plpgsql as $$
+begin
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims',
+    json_build_object('sub', tests.uid(p_k), 'role', 'authenticated')::text, true);
+end;
+$$;
+
+-- kunci dokumen fixture yang terlihat oleh pengguna saat ini (lewat RLS)
+create function tests.visible() returns text[] language sql stable as $$
+  select coalesce(array_agg(t.k order by t.k), '{}')
+  from tests.records t
+  where exists (select 1 from public.hki_records r where r.id = t.id);
+$$;
+
+create function tests.visible_files() returns text[] language sql stable as $$
+  select coalesce(array_agg(t.k order by t.k), '{}')
+  from tests.records t
+  where exists (
+    select 1 from storage.objects o
+    where o.bucket_id = 'haki-files' and o.name like 'records/' || t.id || '/%'
+  );
+$$;
+
+-- buat dokumen lengkap lewat RPC sungguhan (dijalankan sebagai postgres dengan klaim JWT pemilik)
+create function tests.seed_record(
+  p_k text, p_owner text, p_until text, p_no text, p_persons jsonb, p_validator text default 'val_a'
+) returns uuid language plpgsql as $$
+declare
+  rid uuid;
+  v integer;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', tests.uid(p_owner))::text, true);
+  rid := public.hki_create_record(null, true);
+  insert into tests.records values (p_k, rid);
+
+  v := public.hki_update_fields(rid, tests.versi(p_k), jsonb_build_object(
+    'jenis', 'hak_cipta', 'judul', 'Ciptaan uji ' || p_k, 'no_permohonan', 'EC' || p_no,
+    'no_sertifikat', p_no, 'tgl_permohonan', '2024-03-10', 'status_hki', 'terdaftar',
+    'jenis_ciptaan', 'program_komputer', 'tanggal_pengumuman', '2024-02-01', 'sumber_dana', 'mandiri'));
+  v := public.hki_put_persons(rid, v, p_persons);
+
+  insert into storage.objects (bucket_id, name) values ('haki-files', 'records/' || rid || '/main.pdf');
+  perform public.hki_register_file(rid, 'records/' || rid || '/main.pdf', 'main.pdf', 'application/pdf',
+    1000, encode(extensions.digest(p_k, 'sha256'), 'hex'), 2);
+
+  if p_until in ('submitted', 'archived') then
+    perform public.hki_submit(rid, tests.versi(p_k), true);
+  end if;
+  if p_until = 'archived' then
+    perform set_config('request.jwt.claims', json_build_object('sub', tests.uid(p_validator))::text, true);
+    perform public.hki_review(rid, tests.versi(p_k), 'approve');
+  end if;
+
+  perform set_config('request.jwt.claims', '', true);
+  return rid;
+end;
+$$;
+
+-- ---------- unit, prodi, dosen ----------
+insert into public.units (id, nama, tipe, parent_id) values
+  (990001, 'TU Universitas', 'universitas', null),
+  (990002, 'TU Fakultas A', 'fakultas', 990001),
+  (990003, 'TU Fakultas B', 'fakultas', 990001),
+  (990004, 'TU Prodi A', 'prodi', 990002),
+  (990005, 'TU Prodi B', 'prodi', 990003);
+
+insert into public.prodi (id, prodi, unit_id) values
+  (990001, 'TU Prodi A', 990004),
+  (990002, 'TU Prodi B', 990005);
+
+insert into public.dosen (id, nama, nidn, prodi_id) values
+  (990001, 'Dr. Andi Pemilik, M.Kom.', '9900000001', 990001),
+  (990002, 'Citra Kolaborator, S.T., M.T.', '9900000002', 990001),
+  (990003, 'Bambang Luar, M.Sc.', '9900000003', 990002);
+
+-- ---------- akun ----------
+insert into tests.users values
+  ('owner',    '00000000-0000-0000-0000-0000000a0001'),
+  ('coauthor', '00000000-0000-0000-0000-0000000a0002'),
+  ('outsider', '00000000-0000-0000-0000-0000000a0003'),
+  ('val_a',    '00000000-0000-0000-0000-0000000a0004'),
+  ('val_b',    '00000000-0000-0000-0000-0000000a0005'),
+  ('op_a',     '00000000-0000-0000-0000-0000000a0006'),
+  ('op_b',     '00000000-0000-0000-0000-0000000a0007'),
+  ('pemantau', '00000000-0000-0000-0000-0000000a0008'),
+  ('admin',    '00000000-0000-0000-0000-0000000a0009');
+
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+select id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+  k || '@tests.local', '', now(), '{}', '{}', now(), now()
+from tests.users;
+
+update public.profiles p set role = v.role, dosen_id = v.dosen_id, unit_id = v.unit_id
+from (values
+  ('owner', 'dosen', 990001, null::bigint),
+  ('coauthor', 'dosen', 990002, null),
+  ('outsider', 'dosen', 990003, null),
+  ('val_a', 'validator', null, 990002),
+  ('val_b', 'validator', null, 990003),
+  ('op_a', 'operator', null, 990004),
+  ('op_b', 'operator', null, 990005),
+  ('pemantau', 'pemantau', null, null),
+  ('admin', 'admin', null, null)
+) as v (k, role, dosen_id, unit_id)
+join tests.users u on u.k = v.k
+where p.id = u.id;
+
+update public.profiles set privacy_notice_accepted_at = now()
+where id in (tests.uid('owner'), tests.uid('outsider'), tests.uid('op_a'), tests.uid('op_b'));
+
+-- ---------- dokumen ----------
+do $$
+declare
+  s record;
+begin
+  for s in select * from (values ('wip', 'verified', 'TU-WIP-1'), ('sub', 'submitted', 'TU-SUB-1'),
+      ('sub2', 'submitted', 'TU-SUB-2'), ('arc', 'archived', 'TU-ARC-1')) as x (k, until, no) loop
+    perform tests.seed_record(s.k, 'owner', s.until, s.no, '[
+      {"nama": "Dr. Andi Pemilik, M.Kom.", "nama_normal": "andi pemilik", "peran": "pencipta", "dosen_id": 990001},
+      {"nama": "Citra Kolaborator", "nama_normal": "citra kolaborator", "peran": "pencipta", "dosen_id": 990002},
+      {"nama": "Universitas Uji", "nama_normal": "universitas uji", "peran": "pemegang"}
+    ]'::jsonb);
+  end loop;
+
+  perform tests.seed_record('osub', 'outsider', 'submitted', 'TU-OSUB-1', '[
+    {"nama": "Bambang Luar", "nama_normal": "bambang luar", "peran": "pencipta", "dosen_id": 990003},
+    {"nama": "Universitas Uji", "nama_normal": "universitas uji", "peran": "pemegang"}
+  ]'::jsonb, 'val_b');
+end;
+$$;

@@ -8,6 +8,7 @@ type AuthState = {
   profile: Profile | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -28,6 +29,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const userId = session?.user.id;
 
+  async function loadProfile(id: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, email, role, dosen_id, unit_id, privacy_notice_accepted_at, dosen(nama), unit:units(nama)')
+      .eq('id', id)
+      .single();
+    setProfile((data as unknown as Profile | null) ?? null);
+  }
+
   // Profil (role & dosen) diambil terpisah dari onAuthStateChange
   // karena memanggil supabase di dalam callback tersebut bisa macet
   useEffect(() => {
@@ -36,23 +46,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     setLoading(true);
-    supabase
-      .from('profiles')
-      .select('id, email, role, dosen_id, dosen(nama)')
-      .eq('id', userId)
-      .single()
-      .then(({ data }) => {
-        setProfile((data as unknown as Profile | null) ?? null);
-        setLoading(false);
-      });
+    loadProfile(userId).then(() => setLoading(false));
   }, [userId]);
 
   async function signOut() {
     await supabase.auth.signOut();
   }
 
+  async function refreshProfile() {
+    if (userId) await loadProfile(userId);
+  }
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
