@@ -79,6 +79,7 @@ export default function ArtikelMahasiswaPage() {
       name: 'anggota_dosen',
       label: 'Anggota Dosen',
       type: 'multiselect',
+      picker: 'list',
       wide: true,
       source: { table: 'dosen', select: 'id, nama', order: 'nama', label: (d: any) => d.nama },
       junction: { table: 'artikel_mahasiswa_dosen', foreignKey: 'artikel_mahasiswa_id', valueKey: 'dosen_id' },
