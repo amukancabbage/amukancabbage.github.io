@@ -399,6 +399,40 @@ button {
   }
 }
 
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.picker-add {
+  display: flex;
+  gap: 6px;
+
+  select {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* listbox: tinggi mengikuti atribut size, bukan tinggi 40px untuk select biasa */
+select.picker-list {
+  height: auto;
+  padding: 4px;
+
+  option {
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+}
+
+.picker-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .checklist-wrap {
   display: flex;
   flex-direction: column;

@@ -32,6 +32,9 @@ export type Field<T> = {
   getValues?: (row: T) => (number | string)[];
   // untuk 'multiselect': nilai yang selalu tercentang dan tidak bisa dihapus
   lockedValues?: string[];
+  // untuk 'multiselect': 'checklist' (default) = daftar centang;
+  // 'list' = combobox untuk menambah + listbox berisi yang dipilih, dengan tombol Hapus
+  picker?: 'checklist' | 'list';
   // untuk 'rows': daftar isian per baris, disimpan sebagai array objek di kolom jsonb
   // contoh: [{ name: 'npm', label: 'NPM' }, { name: 'nama', label: 'Nama', required: true }]
   rowFields?: { name: string; label: string; required?: boolean }[];
@@ -111,6 +114,9 @@ export default function CrudPage<T extends { id: number | string }>({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<Record<string, string>>({});
+  // picker 'list': pilihan di combobox dan baris yang disorot di listbox, per field
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const [highlight, setHighlight] = useState<Record<string, string[]>>({});
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState('');
@@ -332,6 +338,73 @@ export default function CrudPage<T extends { id: number | string }>({
           <button type="button" className="secondary" onClick={() => setList([...list, blank()])}>
             + Tambah {f.label}
           </button>
+        </div>
+      );
+    }
+
+    if (f.type === 'multiselect' && f.picker === 'list') {
+      const selected = form[f.name] as string[];
+      const locked = f.lockedValues ?? [];
+      const opts = options[f.name] ?? [];
+      const labelOf = (v: string) => opts.find((o) => String(o.value) === v)?.label ?? v;
+      const marked = (highlight[f.name] ?? []).filter((v) => selected.includes(v) && !locked.includes(v));
+      const add = () => {
+        const v = pick[f.name];
+        if (!v || selected.includes(v)) return;
+        setForm({ ...form, [f.name]: [...selected, v] });
+        setPick({ ...pick, [f.name]: '' });
+      };
+      const remove = () => {
+        setForm({ ...form, [f.name]: selected.filter((v) => !marked.includes(v)) });
+        setHighlight({ ...highlight, [f.name]: [] });
+      };
+      return (
+        <div className="picker">
+          <div className="picker-add">
+            <select
+              aria-label={`Pilih ${f.label.toLowerCase()}`}
+              value={pick[f.name] ?? ''}
+              onChange={(e) => setPick({ ...pick, [f.name]: e.target.value })}
+            >
+              <option value="">-- Pilih dosen untuk ditambahkan --</option>
+              {opts
+                .filter((o) => !selected.includes(String(o.value)))
+                .map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+            </select>
+            <button type="button" className="secondary" disabled={!pick[f.name]} onClick={add}>
+              Tambah
+            </button>
+          </div>
+          <select
+            multiple
+            aria-label={f.label}
+            className="picker-list"
+            size={Math.min(Math.max(selected.length, 4), 10)}
+            value={marked}
+            onChange={(e) =>
+              setHighlight({
+                ...highlight,
+                [f.name]: Array.from(e.target.selectedOptions, (o) => o.value),
+              })
+            }
+          >
+            {selected.map((v) => (
+              <option key={v} value={v} disabled={locked.includes(v)}>
+                {labelOf(v)}
+                {locked.includes(v) ? ' (Anda)' : ''}
+              </option>
+            ))}
+          </select>
+          <div className="picker-actions">
+            <span className="muted">{selected.length} dipilih</span>
+            <button type="button" className="danger" disabled={marked.length === 0} onClick={remove}>
+              Hapus{marked.length > 1 ? ` (${marked.length})` : ''}
+            </button>
+          </div>
         </div>
       );
     }

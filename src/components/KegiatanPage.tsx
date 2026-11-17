@@ -112,6 +112,7 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       name: 'anggota',
       label: timLabel,
       type: 'multiselect',
+      picker: 'list',
       wide: true,
       source: dosenSource,
       junction: {
