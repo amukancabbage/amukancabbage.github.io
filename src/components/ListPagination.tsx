@@ -1,7 +1,12 @@
 import { useSearchParams } from 'react-router-dom';
 import { readPage } from '../lib/pagination';
 
-export default function ListPagination({ total, pageSize, unit = 'dokumen' }: { total: number; pageSize: number; unit?: string }) {
+export default function ListPagination({ total, pageSize, unit = 'dokumen', showTotal = true }: {
+  total: number;
+  pageSize: number;
+  unit?: string;
+  showTotal?: boolean;
+}) {
   const [params, setParams] = useSearchParams();
   const page = readPage(params);
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -15,9 +20,10 @@ export default function ListPagination({ total, pageSize, unit = 'dokumen' }: { 
     });
   }
 
+  if (!showTotal && pages <= 1) return null;
   return (
     <nav className="pagination" aria-label="Paginasi">
-      <span>{total} {unit}</span>
+      {showTotal && <span>{total} {unit}</span>}
       {pages > 1 && (
         <div className="pagination-buttons">
           <button type="button" className="secondary" aria-label="Halaman sebelumnya" disabled={page <= 1} onClick={() => go(page - 1)}>‹</button>

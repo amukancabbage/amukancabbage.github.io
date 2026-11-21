@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import AsyncState from './AsyncState';
 import Dialog from './Dialog';
 import { useDraftGuard, useUnsavedDraft } from './DraftGuard';
+import ResponsiveList, { type ListColumn } from './ResponsiveList';
 
 export type Option = { value: number | string; label: string };
 export type RowValues = Record<string, string>;
@@ -60,6 +61,7 @@ type Props<T> = {
   // satu atau beberapa kolom urutan; kolom tabel relasi ditulis 'tabel(kolom)', mis. 'prodi(prodi)'
   order?: OrderBy | OrderBy[];
   fields: Field<T>[];
+  listColumns?: { summary: (keyof T & string)[]; extra?: keyof T & string };
   // hak akses; default semua diizinkan
   canCreate?: boolean;
   canEdit?: (row: T) => boolean;
@@ -102,6 +104,7 @@ export default function CrudPage<T extends { id: number | string }>({
   select,
   order = { column: 'id' },
   fields,
+  listColumns,
   canCreate = true,
   canEdit = allow,
   canDelete = canEdit,
@@ -151,9 +154,9 @@ export default function CrudPage<T extends { id: number | string }>({
     });
   }
 
-  async function loadRows() {
+  async function loadRows(keepRows = false) {
     const current = ++requestId.current;
-    setLoading(true);
+    if (!keepRows) setLoading(true);
     let query = supabase.from(table).select(select, { count: pageSize ? 'exact' : undefined });
     if (appliedKeyword && searchColumns) {
       // tanda kutip & backslash dibuang agar tidak merusak sintaks filter .or()
@@ -335,7 +338,7 @@ export default function CrudPage<T extends { id: number | string }>({
 
     setSaved('Data tersimpan.');
     resetForm();
-    void loadRows();
+    void loadRows(true);
     return true;
   }
 
@@ -561,20 +564,19 @@ export default function CrudPage<T extends { id: number | string }>({
     return <input type={f.type ?? 'text'} {...common} />;
   }
 
-  const columns = fields.filter((f) => !f.hideInTable);
-  const primary = columns.find((f) => f.name.startsWith('judul')) ?? columns[0];
-  const showActions = rows.some((r) => canEdit(r) || canDelete(r));
-  const cell = (field: Field<T>, row: T) =>
-    field.render ? field.render(row) : String(row[field.name] ?? '–');
-
-  function actions(row: T) {
-    return (
-      <>
-        {canEdit(row) && <button type="button" className="secondary" onClick={() => handleEdit(row)}>Ubah</button>}
-        {canDelete(row) && <button type="button" className="danger" onClick={() => void handleDelete(row.id)}>Hapus</button>}
-      </>
-    );
-  }
+  const listedFields = fields.filter((field) => !field.hideInTable);
+  const primary = listedFields.find((field) => field.name.startsWith('judul')) ?? listedFields[0];
+  const displayOrder = listColumns ? [...listColumns.summary, listColumns.extra] : [primary?.name];
+  const orderedFields = [
+    ...displayOrder.flatMap((name) => listedFields.filter((field) => field.name === name)),
+    ...listedFields.filter((field) => !displayOrder.includes(field.name)),
+  ];
+  const columns = orderedFields.map((field, index): ListColumn<T> => ({
+    label: field.label,
+    render: (row) => field.render ? field.render(row) : String(row[field.name] ?? '–'),
+    visibility: listColumns?.summary.includes(field.name) || (!listColumns && index < 2) ? 'summary'
+      : !listColumns || listColumns.extra === field.name ? 'desktop' : 'detail',
+  }));
 
   return (
     <section className="page">
@@ -607,47 +609,20 @@ export default function CrudPage<T extends { id: number | string }>({
         onRetry={() => void loadRows()}
       />
 
-      {!loading && rows.length > 0 && (
-        <>
-          <div className="card table-wrap desktop-list">
-            <table>
-              <thead><tr>
-                <th scope="col">No</th>
-                {columns.map((f) => <th key={f.name} scope="col">{f.label}</th>)}
-                {showActions && <th scope="col">Aksi</th>}
-              </tr></thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr key={row.id}>
-                    <td>{(pageSize ? (page - 1) * pageSize : 0) + index + 1}</td>
-                    {columns.map((f) => <td key={f.name}>{cell(f, row)}</td>)}
-                    {showActions && <td className="actions">{actions(row)}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mobile-list">
-            {rows.map((row) => (
-              <article className="card row-summary" key={row.id}>
-                <h2>{primary ? cell(primary, row) : String(row.id)}</h2>
-                {columns.length > 1 && (
-                  <details>
-                    <summary>Rincian</summary>
-                    <dl>
-                      {columns.filter((f) => f !== primary).map((f) => (
-                        <div key={f.name}><dt>{f.label}</dt><dd>{cell(f, row)}</dd></div>
-                      ))}
-                    </dl>
-                  </details>
-                )}
-                {(canEdit(row) || canDelete(row)) && <div className="actions">{actions(row)}</div>}
-              </article>
-            ))}
-          </div>
-        </>
+      {!loading && (
+        <ResponsiveList
+          rows={rows}
+          columns={columns}
+          caption={title}
+          actions={rows.some(canEdit) ? (row) => canEdit(row) && (
+            <button type="button" className="secondary" onClick={() => handleEdit(row)}>Ubah</button>
+          ) : undefined}
+          detailActions={(row) => canDelete(row) && (
+            <button type="button" className="danger" onClick={() => void handleDelete(row.id)}>Hapus</button>
+          )}
+        />
       )}
-      {pageSize && total > 0 && <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />}
+      {pageSize && total > pageSize && <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />}
 
       {showForm && (
         <Dialog title={(editId === null ? 'Tambah ' : 'Ubah ') + title.toLowerCase()} className="editor-dialog" onClose={() => requestLeave(resetForm)}>

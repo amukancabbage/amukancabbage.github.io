@@ -44,13 +44,13 @@ export default function HakiArchivePage() {
 
   const columns: ListColumn<HkiListRow>[] = [
     { label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
-    { label: 'Jenis', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
     { label: 'No. sertifikat', render: (row) => row.no_sertifikat ?? '–' },
-    { label: 'Tgl. permohonan', render: (row) => fmtDate(row.tgl_permohonan) },
-    { label: 'Pencipta', render: (row) => row.pencipta ?? '–' },
-    { label: 'Unit', render: (row) => row.unit_nama ?? '–' },
-    { label: 'Sumber dana', render: (row) => masterLabel(list.master, 'sumber_dana', row.sumber_dana) || '–' },
     { label: 'Status', render: (row) => <StatusBadge status={row.workflow_status} /> },
+    { label: 'Pencipta', visibility: 'desktop', render: (row) => row.pencipta ?? '–' },
+    { label: 'Unit', visibility: 'desktop', render: (row) => row.unit_nama ?? '–' },
+    { label: 'Jenis', visibility: 'detail', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
+    { label: 'Tgl. permohonan', visibility: 'detail', render: (row) => fmtDate(row.tgl_permohonan) },
+    { label: 'Sumber dana', visibility: 'detail', render: (row) => masterLabel(list.master, 'sumber_dana', row.sumber_dana) || '–' },
   ];
   const exportDisabled = !!busy || list.loading || !!list.error || list.total === 0;
 
@@ -58,21 +58,24 @@ export default function HakiArchivePage() {
     <div className="page">
       <header className="page-header">
         <div><h1>Arsip HKI</h1><p className="muted">Cari dan ekspor dokumen dalam cakupan akses Anda. Tahun diambil dari tanggal permohonan.</p></div>
-        <div className="actions export-actions" aria-label="Ekspor arsip">
-          <button className="secondary" onClick={() => void exportAs('csv')} disabled={exportDisabled}>CSV</button>
-          <button className="secondary" onClick={() => void exportAs('xlsx')} disabled={exportDisabled}>XLSX</button>
-          <button className="secondary" onClick={() => void exportAs('zip')} disabled={exportDisabled || list.total > EXPORT_MAX_ZIP}>ZIP berkas</button>
-        </div>
+        <details className="actions-disclosure export-actions">
+          <summary>Ekspor</summary>
+          <div className="actions" aria-label="Ekspor arsip">
+            <button className="secondary" onClick={() => void exportAs('csv')} disabled={exportDisabled}>CSV</button>
+            <button className="secondary" onClick={() => void exportAs('xlsx')} disabled={exportDisabled}>XLSX</button>
+            <button className="secondary" onClick={() => void exportAs('zip')} disabled={exportDisabled || list.total > EXPORT_MAX_ZIP}>ZIP berkas</button>
+          </div>
+        </details>
       </header>
       {busy && <p className="notice" role="status">Menyiapkan ekspor {busy}…</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {list.total > EXPORT_MAX_ZIP && <p className="muted small">Persempit filter untuk ZIP hingga {EXPORT_MAX_ZIP} dokumen.</p>}
       {list.total > EXPORT_MAX_ROWS && <p className="muted small">CSV dan XLSX memuat hingga {EXPORT_MAX_ROWS} baris pertama.</p>}
-      <RecordFilters value={list.filters} units={list.units} master={list.master} showStatus={allStatuses} defaultStatusLabel="Terarsip (bawaan)" fixedStatus={allStatuses ? undefined : 'Terarsip'} onChange={list.updateFilters} />
+      <RecordFilters value={list.filters} units={list.units} master={list.master} total={list.loading || list.error ? null : list.total} showStatus={allStatuses} defaultStatusLabel="Terarsip (bawaan)" fixedStatus={allStatuses ? undefined : 'Terarsip'} onChange={list.updateFilters} />
       <AsyncState error={list.error} loading={list.loading} empty={!list.rows.length ? 'Tidak ada dokumen yang cocok.' : undefined} onRetry={list.retry} />
       {!list.loading && !list.error && <>
         <ResponsiveList rows={list.rows} columns={columns} caption="Arsip HKI" />
-        <ListPagination total={list.total} pageSize={PAGE} />
+        <ListPagination total={list.total} pageSize={PAGE} showTotal={false} />
       </>}
     </div>
   );

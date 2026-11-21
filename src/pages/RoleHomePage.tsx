@@ -10,7 +10,7 @@ import { roleLabel, type Role } from '../types';
 
 type Destination = { to: string; label: string; description: string };
 type Workspace = {
-  primary: Destination;
+  primary: Pick<Destination, 'to' | 'label'>;
   links: Destination[];
   records?: { title: string; statuses: WorkflowStatus[]; to: string };
 };
@@ -22,7 +22,7 @@ const tasks: WorkflowStatus[] = ['DRAFT', 'NEEDS_VERIFICATION', 'NEEDS_REVISION'
 
 const workspaces: Record<Role, Workspace> = {
   dosen: {
-    primary: { to: '/haki/unggah', label: 'Unggah sertifikat', description: 'Mulai rekaman HKI dari sertifikat atau isi metadata secara manual.' },
+    primary: { to: '/haki/unggah', label: 'Unggah sertifikat' },
     links: [
       { to: '/haki/saya', label: 'HKI Saya', description: 'Lanjutkan verifikasi, revisi, atau pengajuan dokumen.' },
       { to: '/penelitian', label: 'Penelitian', description: 'Kelola kegiatan penelitian dan anggota tim.' },
@@ -31,7 +31,7 @@ const workspaces: Record<Role, Workspace> = {
     records: { title: 'HKI perlu tindakan', statuses: tasks, to: '/haki/saya' },
   },
   operator: {
-    primary: { to: '/haki/unggah', label: 'Unggah atas nama dosen', description: 'Pilih dosen dalam unit Anda dan unggah sertifikatnya.' },
+    primary: { to: '/haki/unggah', label: 'Unggah atas nama dosen' },
     links: [
       { to: '/haki/saya', label: 'Dokumen unit', description: 'Periksa dokumen dalam cakupan unit yang perlu disiapkan.' },
       archive,
@@ -40,17 +40,17 @@ const workspaces: Record<Role, Workspace> = {
     records: { title: 'Pekerjaan unit', statuses: tasks, to: '/haki/saya' },
   },
   validator: {
-    primary: { to: '/haki/antrean', label: 'Buka antrean validasi', description: 'Tinjau dokumen yang menunggu keputusan dalam cakupan unit Anda.' },
+    primary: { to: '/haki/antrean', label: 'Buka antrean validasi' },
     links: [dashboard, archive, { to: '/haki/admin/master', label: 'Master HKI', description: 'Kelola jenis ciptaan dan sumber dana.' }],
     records: { title: 'Menunggu validasi', statuses: ['SUBMITTED'], to: '/haki/antrean' },
   },
   pemantau: {
-    primary: { ...archive, label: 'Buka arsip HKI' },
+    primary: { to: archive.to, label: 'Buka arsip HKI' },
     links: [dashboard, recap],
     records: { title: 'Arsip terbaru', statuses: ['ARCHIVED'], to: '/haki/arsip' },
   },
   admin: {
-    primary: { to: '/pengguna', label: 'Kelola pengguna', description: 'Atur peran dan cakupan unit pengguna SISIDOS.' },
+    primary: { to: '/pengguna', label: 'Kelola pengguna' },
     links: [
       { to: '/unit', label: 'Unit', description: 'Kelola hierarki institusi dan program studi.' },
       { to: '/haki/admin/master', label: 'Master HKI', description: 'Kelola jenis ciptaan dan sumber dana.' },
@@ -60,10 +60,10 @@ const workspaces: Record<Role, Workspace> = {
   },
 };
 
-type HomeRecord = Pick<HkiListRow, 'id' | 'judul' | 'workflow_status' | 'updated_at'>;
+type HomeRecord = Pick<HkiListRow, 'id' | 'judul' | 'workflow_status' | 'updated_at' | 'submitted_at'>;
 
 export default function RoleHomePage() {
-  const { role, dosen, dosen_id, email, unit } = useProfile();
+  const { role, dosen_id, unit } = useProfile();
   const workspace = workspaces[role];
   const section = workspace.records;
   const [records, setRecords] = useState<HomeRecord[] | null>(null);
@@ -77,7 +77,7 @@ export default function RoleHomePage() {
     setRecords(null);
     setError('');
     let query = supabase.from('hki_record_list')
-      .select('id, judul, workflow_status, updated_at', { count: 'exact' })
+      .select('id, judul, workflow_status, updated_at, submitted_at', { count: 'exact' })
       .in('workflow_status', section.statuses)
       .order(role === 'validator' ? 'submitted_at' : 'updated_at', { ascending: role === 'validator' })
       .order('id')
@@ -97,49 +97,50 @@ export default function RoleHomePage() {
 
   return (
     <div className="page home-page">
-      <header className="home-banner">
+      <header className="page-header home-heading">
         <div>
-          <p className="home-role">{roleLabel[role]}{unit?.nama ? ' · ' + unit.nama : ''}</p>
           <h1>Beranda</h1>
-          <p className="home-name">{dosen?.nama ?? email ?? 'SISIDOS'}</p>
+          <p className="muted">{roleLabel[role]}{unit?.nama ? ' · ' + unit.nama : ''}</p>
         </div>
-        <div className="home-primary">
-          <p>{workspace.primary.description}</p>
-          <Link className="button-link" to={workspace.primary.to}>{workspace.primary.label} <span aria-hidden="true">›</span></Link>
-        </div>
+        <Link className="button-link" to={workspace.primary.to}>{workspace.primary.label}</Link>
       </header>
 
-      {section && (
-        <section className="card home-work">
-          <div className="card-head">
-            <h2>{section.title}{count != null && !error ? <span className="home-count">{count}</span> : null}</h2>
-            <Link to={section.to}>Lihat semua</Link>
+      <div className={section ? 'home-body has-work' : 'home-body'}>
+        {section && (
+          <section className="card home-work">
+            <div className="card-head">
+              <h2>{section.title}{count != null && !error && records !== null ? <span className="home-count">{count}</span> : null}</h2>
+              {section.to !== workspace.primary.to && <Link to={section.to}>Lihat semua</Link>}
+            </div>
+            <AsyncState error={error} loading={records === null} empty={records?.length === 0 ? 'Belum ada dokumen.' : undefined} onRetry={() => setReload((value) => value + 1)} />
+            {records && records.length > 0 && (
+              <ul className="home-records">
+                {records.map((record) => {
+                  const submittedAt = role === 'validator' ? record.submitted_at : null;
+                  return (
+                    <li key={record.id}>
+                      <Link to={'/haki/dokumen/' + record.id}>{record.judul || '(Tanpa judul)'}</Link>
+                      <StatusBadge status={record.workflow_status} />
+                      <time dateTime={submittedAt ?? record.updated_at}>{submittedAt ? 'Diajukan ' : ''}{fmtDate(submittedAt ?? record.updated_at)}</time>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+        <section aria-labelledby="home-access-title">
+          <h2 id="home-access-title">Akses cepat</h2>
+          <div className="home-links">
+            {workspace.links.map((link) => (
+              <Link className="card home-link" key={link.to} to={link.to}>
+                <span className="home-link-label">{link.label} <span aria-hidden="true">›</span></span>
+                <span className="muted">{link.description}</span>
+              </Link>
+            ))}
           </div>
-          <AsyncState error={error} loading={records === null} empty={records?.length === 0 ? 'Belum ada dokumen.' : undefined} onRetry={() => setReload((value) => value + 1)} />
-          {records && records.length > 0 && (
-            <ul className="home-records">
-              {records.map((record) => (
-                <li key={record.id}>
-                  <Link to={'/haki/dokumen/' + record.id}>{record.judul || '(Tanpa judul)'}</Link>
-                  <StatusBadge status={record.workflow_status} />
-                  <time dateTime={record.updated_at}>{fmtDate(record.updated_at)}</time>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
-      )}
-      <section aria-labelledby="home-access-title">
-        <h2 id="home-access-title">Akses cepat</h2>
-        <div className="home-links">
-          {workspace.links.map((link) => (
-            <Link className="card home-link" key={link.to} to={link.to}>
-              <span className="home-link-label">{link.label} <span aria-hidden="true">›</span></span>
-              <span className="muted">{link.description}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      </div>
     </div>
   );
 }

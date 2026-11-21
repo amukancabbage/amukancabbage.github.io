@@ -222,6 +222,7 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       select={select}
       order={{ column: 'tahun', ascending: false }}
       fields={fields}
+      listColumns={{ summary: [`judul_${table}`, 'dosen_id', 'tahun'], extra: 'skema' }}
       canCreate={isAdmin || isDosen}
       canEdit={canEdit}
       validate={validate}

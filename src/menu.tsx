@@ -47,33 +47,19 @@ export const menu: MenuGroup[] = [
     title: 'Utama',
     items: [
       { path: '/beranda', label: 'Beranda', element: <RoleHomePage />, roles: semua },
+    ],
+  },
+  {
+    title: 'Akademik',
+    items: [
       { path: '/rekap-akademik', label: 'Rekap Akademik', element: <BerandaPage />, roles: semua },
-    ],
-  },
-  {
-    title: 'Penelitian',
-    items: [
       { path: '/penelitian', label: 'Data Penelitian', element: <PenelitianPage />, roles: semua },
-      { path: '/kategori-penelitian', label: 'Kategori', element: <KategoriPenelitianPage />, roles: admin },
-      { path: '/subkategori-penelitian', label: 'Subkategori', element: <SubkategoriPenelitianPage />, roles: admin },
-    ],
-  },
-  {
-    title: 'Pengabdian',
-    items: [
       { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
-      { path: '/kategori-pengabdian', label: 'Kategori', element: <KategoriPengabdianPage />, roles: admin },
-      { path: '/subkategori-pengabdian', label: 'Subkategori', element: <SubkategoriPengabdianPage />, roles: admin },
-    ],
-  },
-  {
-    title: 'Mahasiswa',
-    items: [
       { path: '/artikel-mahasiswa', label: 'Artikel Mahasiswa', element: <ArtikelMahasiswaPage />, roles: semua },
     ],
   },
   {
-    title: 'Kekayaan Intelektual',
+    title: 'HKI',
     items: [
       { path: '/haki', label: 'Ringkasan HKI', element: <HakiBerandaPage />, roles: pengunggah },
       { path: '/haki/unggah', label: 'Unggah Sertifikat', element: <HakiUploadPage />, roles: pengunggah },
@@ -105,6 +91,10 @@ export const menu: MenuGroup[] = [
       { path: '/dosen', label: 'Dosen', element: <DosenPage />, roles: admin },
       { path: '/prodi', label: 'Prodi', element: <ProdiPage />, roles: admin },
       { path: '/unit', label: 'Unit', element: <UnitPage />, roles: admin },
+      { path: '/kategori-penelitian', label: 'Kategori Penelitian', element: <KategoriPenelitianPage />, roles: admin },
+      { path: '/subkategori-penelitian', label: 'Subkategori Penelitian', element: <SubkategoriPenelitianPage />, roles: admin },
+      { path: '/kategori-pengabdian', label: 'Kategori Pengabdian', element: <KategoriPengabdianPage />, roles: admin },
+      { path: '/subkategori-pengabdian', label: 'Subkategori Pengabdian', element: <SubkategoriPengabdianPage />, roles: admin },
       { path: '/haki/admin/master', label: 'Master HKI', element: <HakiMasterPage />, roles: ['admin', 'validator'] },
     ],
   },

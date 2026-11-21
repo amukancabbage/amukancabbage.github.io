@@ -11,7 +11,7 @@ export default function AsyncState({ error, onRetry, loading, empty }: {
     </div>
   );
   if (loading || empty) return (
-    <div className="state" role="status">
+    <div className={loading ? 'state state-loading' : 'state'} role="status">
       {loading ? 'Memuat…' : empty}
     </div>
   );

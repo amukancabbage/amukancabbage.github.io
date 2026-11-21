@@ -54,8 +54,9 @@ export default function HakiAuditPage() {
 
   return (
     <div className="page">
-      <h1>Log Audit</h1>
-      <p className="muted">Jejak aktivitas dokumen dan pengelolaan sistem.</p>
+      <header className="page-header">
+        <div><h1>Log Audit</h1><p className="muted">Jejak aktivitas dokumen dan pengelolaan sistem.</p></div>
+      </header>
       <div className="table-toolbar">
         <label className="field">
           <span>Jenis aksi</span>

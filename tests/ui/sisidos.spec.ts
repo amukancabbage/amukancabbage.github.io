@@ -15,6 +15,15 @@ test('menu ponsel memindah fokus dan menutup lewat Escape', async ({ page }) => 
   await expect(drawer.getByRole('button', { name: 'Tutup menu' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(drawer.getByRole('link', { name: 'Beranda', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(drawer.getByRole('link', { name: 'HKI Saya', exact: true })).toBeFocused();
+  const academic = drawer.getByText('Akademik', { exact: true });
+  await page.keyboard.press('Tab');
+  await expect(academic).toBeFocused();
+  await expect(drawer.getByRole('link', { name: 'Data Penelitian' })).toHaveCount(0);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await expect(drawer.getByRole('link', { name: 'Rekap Akademik' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(drawer).toHaveCount(0);
   await expect(toggle).toBeFocused();
@@ -27,6 +36,7 @@ test('draf bertahan ketika navigasi dibatalkan atau penyimpanan gagal', async ({
   await title.fill('Draf metadata yang perlu disimpan');
   const link = page.getByRole('navigation', { name: 'Navigasi utama' }).getByRole('link', { name: 'Data Penelitian' });
   const dialog = page.getByRole('dialog', { name: 'Perubahan belum tersimpan' });
+  await page.getByRole('navigation', { name: 'Navigasi utama' }).getByText('Akademik', { exact: true }).click();
   await link.click();
   await dialog.getByRole('button', { name: 'Tetap di halaman' }).click();
   await expect(title).toHaveValue('Draf metadata yang perlu disimpan');
@@ -198,6 +208,7 @@ test('pilihan tema tersimpan dan teks aksi utama memiliki kontras cukup', async 
 
 test('ekspor ZIP meminta filter lebih sempit di atas batas', async ({ page }) => {
   await (await demo(page, 'pemantau', { archiveTotal: 301 })).login('/haki/arsip');
+  await page.getByText('Ekspor', { exact: true }).press('Enter');
   await expect(page.getByRole('button', { name: 'CSV', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'ZIP berkas' })).toBeDisabled();
   await expect(page.getByText('Persempit filter untuk ZIP hingga 300 dokumen.')).toBeVisible();

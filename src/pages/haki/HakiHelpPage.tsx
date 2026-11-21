@@ -44,8 +44,9 @@ const FAQ: [string, string][] = [
 export default function HakiHelpPage() {
   return (
     <div className="page">
-      <h1>Bantuan HKI</h1>
-      <p className="muted">Panduan unggah, verifikasi, dan pengarsipan dokumen.</p>
+      <header className="page-header">
+        <div><h1>Bantuan HKI</h1><p className="muted">Panduan unggah, verifikasi, dan pengarsipan dokumen.</p></div>
+      </header>
       <div className="faq">
         {FAQ.map(([q, a]) => (
           <details key={q} className="card pad">

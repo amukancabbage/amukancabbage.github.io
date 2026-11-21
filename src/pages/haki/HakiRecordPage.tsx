@@ -230,11 +230,14 @@ function RecordDetail({ id }: { id: string }) {
   const record = { ...data.record, versi: Math.max(data.record.versi, writtenVersion) };
   const editable = meta.caps.edit;
   const reviewing = meta.caps.review;
+  const blockedReason = metadataPending ? 'Simpan atau batalkan perubahan metadata sebelum melanjutkan.'
+    : personsPending ? 'Selesaikan perubahan daftar pencipta sebelum melanjutkan.'
+    : fileBusy ? 'Tunggu perubahan berkas selesai sebelum melanjutkan.' : undefined;
 
   return (
     <div className="page record-page">
-      <div className="record-head">
-        <div>
+      <header className="record-head">
+        <div className="record-topline">
           <div className="crumbs" data-record-shortcuts>
             {nav ? <Link to={nav.back}>‹ Antrean</Link> : <Link to={back}>‹ Kembali ke daftar</Link>}
             {nav && (
@@ -252,14 +255,15 @@ function RecordDetail({ id }: { id: string }) {
             )}
             {nav && <button type="button" className="link-button" onClick={() => setHelp((value) => !value)} aria-expanded={help}>Pintasan</button>}
           </div>
-          <h1>{record.judul || '(tanpa judul)'}</h1>
-          <p className="muted">
-            {record.jenis ? JENIS_LABEL[record.jenis] : 'Jenis belum diisi'} · Pemilik: {data.ownerNama ?? '-'}
-            {data.unitNama ? ` · ${data.unitNama}` : ''} · Diunggah {fmtDate(record.created_at)} · Versi {record.versi}
-          </p>
+          <StatusBadge status={record.workflow_status} />
         </div>
-        <StatusBadge status={record.workflow_status} />
-      </div>
+        <h1>{record.judul || '(tanpa judul)'}</h1>
+        <p className="muted">
+          {record.jenis ? JENIS_LABEL[record.jenis] : 'Jenis belum diisi'} · {data.ownerNama ?? 'Pemilik belum tersedia'}
+          {data.unitNama ? ` · ${data.unitNama}` : ''}
+        </p>
+        <p className="muted small">Diunggah {fmtDate(record.created_at)} · Versi {record.versi}</p>
+      </header>
 
       {help && (
         <div className="notice">
@@ -310,6 +314,14 @@ function RecordDetail({ id }: { id: string }) {
         <p className="muted small">Tidak layak setujui massal: {BULK_REASON[meta.bulk_ineligible] ?? meta.bulk_ineligible}.</p>
       )}
 
+      <WorkflowActions
+        record={record}
+        meta={meta}
+        reviewNotes={reviewNotes}
+        blockedReason={blockedReason}
+        onBusyChange={setActionBusy}
+        onDone={afterAction}
+      />
       {!split && <Tabs id="record" label="Bagian dokumen" tabs={recordTabs} value={tab} onChange={setTab} />}
       <div className="record-grid">
         <section
@@ -319,14 +331,6 @@ function RecordDetail({ id }: { id: string }) {
           aria-labelledby={split ? undefined : 'record-tab-metadata'}
           hidden={!split && tab !== 'metadata'}
         >
-          <WorkflowActions
-            record={record}
-            meta={meta}
-            reviewNotes={reviewNotes}
-            blocked={metadataPending || personsPending || fileBusy}
-            onBusyChange={setActionBusy}
-            onDone={afterAction}
-          />
           <FieldForm
             key={record.id}
             record={data.record}
@@ -365,7 +369,7 @@ function RecordDetail({ id }: { id: string }) {
               </ul>
             </div>
           )}
-          <details className="card history-disclosure" open><summary>Riwayat dokumen</summary><HistoryTimeline items={data.history} /></details>
+          <details className="card history-disclosure"><summary>Riwayat dokumen</summary><HistoryTimeline items={data.history} /></details>
         </section>
         <section
           id="record-panel-files"

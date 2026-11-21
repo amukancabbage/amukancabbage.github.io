@@ -2,8 +2,10 @@ import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { useUnsavedDraft } from '../DraftGuard';
 import type { HakiSettings } from '../../haki/api';
 import {
+  COMMON_FIELDS,
   JENIS_LABEL,
   MANUAL_FIELDS,
+  SPECIFIC_FIELDS,
   STATUS_HKI_LABEL,
   VALIDITY_FIELDS,
   fieldLabel,
@@ -337,13 +339,23 @@ export default function FieldForm({
 
 
   return (
-    <div className="card">
-      <div className="card-head">
+    <div className="card metadata-card">
+      <div className={`card-head${editable ? ' metadata-toolbar' : ''}`}>
         <h2>Metadata</h2>
         {editable && (
-          <span className="muted small" role="status">
-            {saving ? 'Menyimpan...' : pending > 0 ? `${pending} perubahan belum tersimpan (disimpan otomatis)` : savedAt ? `Tersimpan ${savedAt.toLocaleTimeString('id-ID')}` : ''}
-          </span>
+          <div className="save-controls">
+            <span className="muted small" role="status">
+              {saving ? 'Menyimpan...' : conflict ? 'Konflik versi' : error ? 'Gagal disimpan'
+                : pending > 0 ? `${pending} perubahan belum tersimpan` : savedAt ? `Tersimpan ${savedAt.toLocaleTimeString('id-ID')}` : ''}
+            </span>
+            {conflict ? (
+              <button type="button" className="secondary" onClick={() => conflictPanel.current?.focus()}>Tinjau konflik</button>
+            ) : (
+              <button type="button" onClick={() => void save()} disabled={saving || locked || pending === 0}>
+                {error ? 'Coba simpan lagi' : 'Simpan sekarang'}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {error && <p className="error pad" role="alert">{error}</p>}
@@ -367,29 +379,25 @@ export default function FieldForm({
           <button type="button" disabled={conflictKeys.some((key) => !choices[key])} onClick={resolveConflict}>Gunakan pilihan</button>
         </section>
       )}
-      <div className="form">
-        {fieldsFor(jenis).map((f) => row(f, f.key === 'judul'))}
-        <div className="wide divider" />
-        {MANUAL_FIELDS.map((f) => row(f))}
-        {VALIDITY_FIELDS.map((f) => row(f))}
-        {editable && (
-          <div className="form-actions">
-            <button type="button" onClick={() => void save()} disabled={saving || locked || !!conflict || pending === 0}>
-              Simpan sekarang
-            </button>
-            {pending > 0 && (
-              <button
-                type="button"
-                className="secondary"
-                disabled={saving}
-                onClick={discard}
-              >
-                Batalkan perubahan
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      <section className="metadata-section">
+        <h3>Identitas HKI</h3>
+        <div className="form">{COMMON_FIELDS.map((f) => row(f, f.key === 'judul'))}</div>
+      </section>
+      {jenis && SPECIFIC_FIELDS[jenis].length > 0 && (
+        <section className="metadata-section">
+          <h3>Rincian {JENIS_LABEL[jenis]}</h3>
+          <div className="form">{SPECIFIC_FIELDS[jenis].map((f) => row(f))}</div>
+        </section>
+      )}
+      <section className="metadata-section">
+        <h3>Informasi tambahan</h3>
+        <div className="form">{[...MANUAL_FIELDS, ...VALIDITY_FIELDS].map((f) => row(f))}</div>
+      </section>
+      {editable && pending > 0 && (
+        <div className="metadata-discard">
+          <button type="button" className="secondary" disabled={saving} onClick={discard}>Batalkan perubahan</button>
+        </div>
+      )}
     </div>
   );
 }

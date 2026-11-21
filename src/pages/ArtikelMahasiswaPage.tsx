@@ -123,6 +123,7 @@ export default function ArtikelMahasiswaPage() {
         { column: 'id', ascending: false },
       ]}
       fields={fields}
+      listColumns={{ summary: ['judul', 'nama', 'tahun'], extra: 'jenis_artikel' }}
       canCreate={isAdmin || isDosen}
       canEdit={canEdit}
       pageSize={10}

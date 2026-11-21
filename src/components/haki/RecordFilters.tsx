@@ -12,6 +12,8 @@ type Props = {
   statusChoices?: readonly { key: string; label: string }[];
   showQueue?: boolean;
   fixedStatus?: string;
+  total: number | null;
+  actions?: ReactNode;
   defaultStatusLabel?: string;
   onChange: (filters: ListFilters) => void;
 };
@@ -20,10 +22,10 @@ const year = new Date().getFullYear();
 const years = Array.from({ length: 30 }, (_, index) => String(year - index));
 const statuses = Object.entries(WORKFLOW_LABEL).map(([key, label]) => ({ key, label }));
 
-export default function RecordFilters({ value, units, master, showStatus, statusChoices, showQueue, fixedStatus, defaultStatusLabel = 'Semua status', onChange }: Props) {
+export default function RecordFilters({ value, units, master, showStatus, statusChoices, showQueue, fixedStatus, total, actions, defaultStatusLabel = 'Semua status', onChange }: Props) {
   const [query, setQuery] = useState(value.q);
   useEffect(() => { setQuery(value.q); }, [value.q]);
-  const extra = [value.jenis, value.tahun, value.unit, value.sumber, value.sort, value.conf, value.umur].filter(Boolean).length;
+  const extra = [value.jenis, value.tahun, value.unit, value.sumber, value.sort, ...(showQueue ? [value.conf, value.umur] : [])].filter(Boolean).length;
   const choices = statusChoices ?? statuses;
 
   function submit(event: FormEvent) {
@@ -54,7 +56,6 @@ export default function RecordFilters({ value, units, master, showStatus, status
           <option value="">{defaultStatusLabel}</option>
           {choices.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
         </>)}
-        {fixedStatus && <span className="badge badge-info">{fixedStatus}</span>}
       </form>
       <details className="filter-more">
         <summary>Filter lainnya{extra ? ' (' + extra + ')' : ''}</summary>
@@ -96,6 +97,13 @@ export default function RecordFilters({ value, units, master, showStatus, status
           </>)}
         </div>
       </details>
+      <div className="filter-results">
+        <span className="muted small" aria-live="polite">
+          {total != null ? `${total.toLocaleString('id-ID')} dokumen` : ''}
+          {total != null && fixedStatus ? ' · ' : ''}{fixedStatus}
+        </span>
+        {actions}
+      </div>
     </section>
   );
 }

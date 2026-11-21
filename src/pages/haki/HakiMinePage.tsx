@@ -38,20 +38,20 @@ export default function HakiMinePage() {
 
   const columns: ListColumn<HkiListRow>[] = [
     { label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
-    { label: 'Jenis', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
-    { label: 'Tahun', render: (row) => row.tahun ?? '–' },
-    ...(operator ? [{ label: 'Dosen', render: (row: HkiListRow) => row.owner_nama ?? '–' }] : []),
     { label: 'Status', render: (row) => <StatusBadge status={row.workflow_status} /> },
+    ...(operator ? [{ label: 'Dosen', render: (row: HkiListRow) => row.owner_nama ?? '–' }] : []),
     { label: 'Diperbarui', render: (row) => fmtDate(row.updated_at) },
+    { label: 'Jenis', visibility: 'desktop', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
+    { label: 'Tahun', visibility: 'detail', render: (row) => row.tahun ?? '–' },
   ];
 
   return (
     <div className="page">
       <header className="page-header">
-        <div><h1>HKI Saya</h1><p className="muted">{operator ? 'Dokumen dosen dalam unit Anda.' : 'Dokumen milik Anda dan dokumen yang Anda konfirmasi sebagai pencipta.'}</p></div>
+        <div><h1>HKI Saya</h1><p className="muted">{operator ? 'Dokumen dosen dalam cakupan unit Anda.' : 'Dokumen milik Anda dan dokumen yang Anda konfirmasi sebagai pencipta.'}</p></div>
         <Link to="/haki/unggah" className="button-link">Unggah sertifikat</Link>
       </header>
-      <RecordFilters value={list.filters} units={list.units} master={list.master} showStatus statusChoices={MINE_TABS.filter((tab) => tab.key !== 'semua')} onChange={list.updateFilters} />
+      <RecordFilters value={list.filters} units={list.units} master={list.master} total={list.loading || list.error ? null : list.total} showStatus statusChoices={MINE_TABS.filter((tab) => tab.key !== 'semua')} onChange={list.updateFilters} />
       {error && <p className="error" role="alert">{error}</p>}
       <AsyncState loading={list.loading} error={list.error} onRetry={list.retry} empty={!list.rows.length ? 'Tidak ada dokumen yang cocok.' : undefined} />
       {!list.loading && !list.error && <>
@@ -59,11 +59,11 @@ export default function HakiMinePage() {
           rows={list.rows}
           columns={columns}
           caption="Dokumen HKI"
-          actions={(row) => DELETABLE.includes(row.workflow_status) && (row.owner_dosen_id === profile.dosen_id || operator) ? (
+          detailActions={(row) => DELETABLE.includes(row.workflow_status) && (row.owner_dosen_id === profile.dosen_id || operator) ? (
             <button className="danger" disabled={deleting !== null} onClick={() => void remove(row)}>Hapus</button>
           ) : null}
         />
-        <ListPagination total={list.total} pageSize={PAGE} />
+        <ListPagination total={list.total} pageSize={PAGE} showTotal={false} />
       </>}
     </div>
   );

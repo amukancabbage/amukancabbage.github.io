@@ -38,7 +38,6 @@ export default function LoginPage() {
       <div className="login-content">
         <form className="login-card" onSubmit={handleSubmit} aria-busy={loading}>
           <h1>Masuk</h1>
-          <p className="muted">Gunakan akun SISIDOS Anda.</p>
           <label className="field">
             <span>Email</span>
             <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -47,7 +46,7 @@ export default function LoginPage() {
             <label htmlFor="password">Kata sandi</label>
             <div className="password-control">
               <input id="password" type={visible ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-              <button type="button" className="secondary" onClick={() => setVisible((value) => !value)}>
+              <button type="button" className="secondary" aria-label={visible ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'} aria-controls="password" onClick={() => setVisible((value) => !value)}>
                 {visible ? 'Sembunyikan' : 'Lihat'}
               </button>
             </div>

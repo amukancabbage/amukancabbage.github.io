@@ -15,6 +15,8 @@ Smoke browser 2026-11-06 mencakup: dosen (privasi → unggah PNG → isi metadat
 
 Verifikasi rebuild SISIDOS 2026-11-21. Lima akun demo lokal membuka beranda sesuai peran. PNG dan PDF sintetis melewati Edge Function dengan OpenRouter mock. PDF dapat dipratinjau pada ponsel. Uji browser mencakup pengajuan, revisi, pengajuan ulang, persetujuan, koreksi arsip, autosave 10 detik, serta unduhan CSV, XLSX, dan ZIP. Playwright (`npm run test:ui`, 13 tes) mencakup navigasi keyboard, reflow 320–1.440 px pada dua tema, perlindungan draf, konflik versi, dan picker anggota.
 
+Verifikasi penyempurnaan SISIDOS 2026-11-21. Playwright lulus 18 tes pada Chromium. Cakupannya meliputi reflow dua tema, fokus menu dan editor, akses Simpan saat menggulir, autosave 10 detik, dan persetujuan massal sesuai hasil RPC. Uji lokal lima peran memakai PDF dan PNG sintetis dengan AI mock. Operator dapat melanjutkan unggahan setelah gangguan penyimpanan. Dosen dan validator menyelesaikan pengajuan, revisi, koreksi, dan pengarsipan ulang. Pemantau mengunduh CSV, XLSX, dan ZIP.
+
 ---
 
 ## A. Fondasi
@@ -37,6 +39,7 @@ Verifikasi rebuild SISIDOS 2026-11-21. Lima akun demo lokal membuka beranda sesu
 - [~] **W** Unggah PDF/JPEG/PNG (+ penanganan HEIC) — PNG dan PDF teruji; JPEG dan HEIC perlu uji
 - [~] **W** Validasi ukuran/halaman/korup/enkripsi
 - [x] **W** Operator `on_behalf_of` (wajib) dalam unit
+- [x] **N** Coba ulang per berkas melanjutkan rekaman dan objek yang sudah tersimpan. Teruji di Playwright dan Supabase lokal setelah unggah manifes gagal.
 - [~] **W** Berkas utama + lampiran; utama tidak bisa dihapus
 - [x] **W** Pratinjau / unduh dengan audit view
 - [~] **W** Rate limit unggah (60 berkas/jam, di RPC `hki_register_file`)
