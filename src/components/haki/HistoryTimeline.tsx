@@ -19,17 +19,13 @@ const LABEL: Record<string, string> = {
 
 export default function HistoryTimeline({ items }: { items: HistoryItem[] }) {
   return (
-    <div className="card">
-      <div className="card-head">
-        <h2>Riwayat</h2>
-      </div>
-      <ol className="timeline">
+    <ol className="timeline">
         {items.length === 0 && <li className="muted">Belum ada riwayat.</li>}
         {items.map((h, i) => (
           <li key={i}>
             <div>
               <strong>{LABEL[h.aksi] ?? h.aksi}</strong>
-              {h.actor && <span className="muted"> · {h.actor}</span>}
+              {h.actor && <span className="muted"> oleh {h.actor}</span>}
             </div>
             <div className="muted small">{fmtDateTime(h.at)}</div>
             {h.catatan && <div className="timeline-note">{h.catatan}</div>}
@@ -44,7 +40,6 @@ export default function HistoryTimeline({ items }: { items: HistoryItem[] }) {
             )}
           </li>
         ))}
-      </ol>
-    </div>
+    </ol>
   );
 }

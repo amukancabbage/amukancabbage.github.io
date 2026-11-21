@@ -1,8 +1,13 @@
-import { useState } from 'react';
-import { errorText, rpc } from '../../haki/api';
+import { Plus, RefreshCw, Save, SquarePen, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { IconLabel } from '../AppIcon';
+import { useUnsavedDraft } from '../DraftGuard';
+import SearchSelect from '../SearchSelect';
+import { HakiError, errorText, rpc } from '../../haki/api';
 import { COCOK_LABEL, PERAN_LABEL } from '../../haki/constants';
 import { matchPersons, normalizeName, toCandidates, type DirectoryEntry } from '../../haki/personMatch';
 import type { HkiPerson, HkiRecord, Peran } from '../../haki/types';
+import { supabase } from '../../lib/supabase';
 
 type Draft = {
   id?: number;
@@ -23,7 +28,9 @@ type Props = {
   record: HkiRecord;
   persons: HkiPerson[];
   editable: boolean;
-  onSaved: () => void;
+  locked?: boolean;
+  onPendingChange: (pending: boolean) => void;
+  onSaved: (version: number) => void;
   onConflict: (message: string) => void;
 };
 
@@ -50,14 +57,25 @@ function toDraft(p: HkiPerson): Draft {
   };
 }
 
-export default function PersonsEditor({ record, persons, editable, onSaved, onConflict }: Props) {
+export default function PersonsEditor({ record, persons, editable, locked = false, onPendingChange, onSaved, onConflict }: Props) {
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkFor, setLinkFor] = useState<number | null>(null);
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState<Lecturer[]>([]);
+  const initial = useRef('');
+  const editVersion = useRef(record.versi);
+  const inFlight = useRef<Promise<boolean> | null>(null);
+  const dirty = editing && initial.current !== JSON.stringify(drafts);
+  const canEdit = editable && !locked;
+  useEffect(() => { onPendingChange(dirty || busy); }, [onPendingChange, dirty, busy]);
+
+  useUnsavedDraft({
+    dirty,
+    saving: busy,
+    save: canEdit && editing ? save : undefined,
+    discard: () => setEditing(false),
+  });
 
   async function directory() {
     const dir = await rpc<DirectoryEntry[]>('hki_match_directory');
@@ -65,7 +83,10 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
   }
 
   function startEdit() {
-    setDrafts(persons.map(toDraft));
+    const initialDrafts = persons.map(toDraft);
+    initial.current = JSON.stringify(initialDrafts);
+    editVersion.current = record.versi;
+    setDrafts(initialDrafts);
     setEditing(true);
     setError(null);
   }
@@ -76,12 +97,19 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
 
   async function handle(e: unknown) {
     const msg = errorText(e);
-    if (msg.includes('diubah')) onConflict(msg);
+    if (e instanceof HakiError && e.code === 'VERSION_CONFLICT') onConflict(msg);
     else setError(msg);
   }
 
   // simpan daftar: nama yang berubah dicocokkan ulang, tautan manual dibiarkan
-  async function save() {
+  function save() {
+    if (inFlight.current) return inFlight.current;
+    if (!canEdit || !editing) return Promise.resolve(false);
+    inFlight.current = saveDraft().finally(() => { inFlight.current = null; });
+    return inFlight.current;
+  }
+
+  async function saveDraft() {
     setBusy(true);
     setError(null);
     try {
@@ -95,11 +123,13 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
       const matched = matchPersons(base, candidates, record.owner_dosen_id, record.unit_id).map((m, i) =>
         same[i] ? { ...m, dosen_id: drafts[i].dosen_id, link_manual: drafts[i].link_manual } : m,
       );
-      await rpc('hki_put_persons', { p_record: record.id, p_versi: record.versi, p_persons: matched });
+      const version = await rpc<number>('hki_put_persons', { p_record: record.id, p_versi: editVersion.current, p_persons: matched });
       setEditing(false);
-      onSaved();
+      onSaved(version);
+      return true;
     } catch (e) {
       await handle(e);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -112,8 +142,8 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
       const candidates = await directory();
       const rows = persons.map(toDraft);
       const matched = matchPersons(rows, candidates, record.owner_dosen_id, record.unit_id);
-      await rpc('hki_put_persons', { p_record: record.id, p_versi: record.versi, p_persons: matched });
-      onSaved();
+      const version = await rpc<number>('hki_put_persons', { p_record: record.id, p_versi: record.versi, p_persons: matched });
+      onSaved(version);
     } catch (e) {
       await handle(e);
     } finally {
@@ -121,24 +151,21 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
     }
   }
 
-  async function search(value: string) {
-    setQ(value);
-    if (value.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    setResults(await rpc<Lecturer[]>('hki_lecturer_search', { p_q: value }).catch(() => []));
+  async function search(value: string, signal: AbortSignal) {
+    const { data, error } = await supabase.rpc('hki_lecturer_search', { p_q: value }).abortSignal(signal);
+    if (error) throw error;
+    return ((data ?? []) as Lecturer[]).map((row) => ({
+      value: String(row.id), label: row.nama, detail: [row.unit, row.nidn ? 'NIDN ' + row.nidn : null].filter(Boolean).join(', '),
+    }));
   }
 
   async function link(personId: number, dosenId: number | null) {
     setBusy(true);
     setError(null);
     try {
-      await rpc('hki_link_person', { p_record: record.id, p_versi: record.versi, p_person: personId, p_dosen: dosenId });
+      const version = await rpc<number>('hki_link_person', { p_record: record.id, p_versi: record.versi, p_person: personId, p_dosen: dosenId });
       setLinkFor(null);
-      setQ('');
-      setResults([]);
-      onSaved();
+      onSaved(version);
     } catch (e) {
       await handle(e);
     } finally {
@@ -150,18 +177,18 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
     <div className="card">
       <div className="card-head">
         <h2>Pencipta, Pemegang &amp; Kuasa</h2>
-        {editable && !editing && (
+        {canEdit && !editing && (
           <div className="actions">
             <button className="secondary" onClick={rematch} disabled={busy || persons.length === 0}>
-              Cocokkan ulang
+              <IconLabel icon={RefreshCw}>Cocokkan ulang</IconLabel>
             </button>
             <button onClick={startEdit} disabled={busy}>
-              Ubah daftar
+              <IconLabel icon={SquarePen}>Ubah daftar</IconLabel>
             </button>
           </div>
         )}
       </div>
-      {error && <p className="error pad">{error}</p>}
+      {error && <p className="error pad" role="alert">{error}</p>}
 
       {!editing ? (
         <div className="table-wrap">
@@ -172,7 +199,7 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
                 <th>Peran</th>
                 <th>Dosen tertaut</th>
                 <th>Status</th>
-                {editable && <th></th>}
+                {canEdit && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -197,18 +224,12 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
                     <td>
                       <span className={`badge badge-${tone[p.status_cocok]}`}>{COCOK_LABEL[p.status_cocok]}</span>
                     </td>
-                    {editable && (
+                    {canEdit && (
                       <td className="actions">
                         {linkFor === p.id ? (
                           <div className="link-search">
-                            <input autoFocus placeholder="Cari nama dosen..." value={q} onChange={(e) => search(e.target.value)} />
-                            {results.map((r) => (
-                              <button key={r.id} className="secondary" onClick={() => link(p.id, r.id)} disabled={busy}>
-                                {r.nama}
-                                {r.unit ? ` · ${r.unit}` : ''}
-                                {r.nidn ? ` · ${r.nidn}` : ''}
-                              </button>
-                            ))}
+                            <SearchSelect label="Cari nama dosen" placeholder="Ketik nama dosen" autoFocus
+                              lookup={search} disabled={busy} onPick={(item) => { if (item) void link(p.id, Number(item.value)); }} />
                             <button className="link-button" onClick={() => setLinkFor(null)}>
                               Batal
                             </button>
@@ -237,22 +258,22 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
         <div className="form persons-form">
           {drafts.map((d, i) => (
             <div key={i} className="person-row wide">
-              <input placeholder="Nama sesuai dokumen" value={d.nama} onChange={(e) => patch(i, { nama: e.target.value })} />
-              <select value={d.peran} onChange={(e) => patch(i, { peran: e.target.value as Peran })}>
+              <input aria-label={'Nama orang ' + (i + 1)} disabled={busy || locked} placeholder="Nama sesuai dokumen" value={d.nama} onChange={(e) => patch(i, { nama: e.target.value })} />
+              <select aria-label={'Peran orang ' + (i + 1)} disabled={busy || locked} value={d.peran} onChange={(e) => patch(i, { peran: e.target.value as Peran })}>
                 {Object.entries(PERAN_LABEL).map(([k, l]) => (
                   <option key={k} value={k}>
                     {l}
                   </option>
                 ))}
               </select>
-              <input placeholder="Alamat" value={d.alamat} onChange={(e) => patch(i, { alamat: e.target.value })} />
+              <input aria-label={'Alamat orang ' + (i + 1)} disabled={busy || locked} placeholder="Alamat" value={d.alamat} onChange={(e) => patch(i, { alamat: e.target.value })} />
               <input
-                placeholder="Kewarganegaraan"
+                aria-label={'Kewarganegaraan orang ' + (i + 1)} disabled={busy || locked} placeholder="Kewarganegaraan"
                 value={d.kewarganegaraan}
                 onChange={(e) => patch(i, { kewarganegaraan: e.target.value })}
               />
               <button className="danger" onClick={() => setDrafts((x) => x.filter((_, j) => j !== i))}>
-                Hapus
+                <IconLabel icon={Trash2}>Hapus</IconLabel>
               </button>
             </div>
           ))}
@@ -263,10 +284,10 @@ export default function PersonsEditor({ record, persons, editable, onSaved, onCo
                 setDrafts((x) => [...x, { nama: '', peran: 'pencipta', alamat: '', kewarganegaraan: '', dosen_id: null, link_manual: false }])
               }
             >
-              Tambah orang
+              <IconLabel icon={Plus}>Tambah orang</IconLabel>
             </button>
-            <button onClick={() => save()} disabled={busy}>
-              {busy ? 'Menyimpan...' : 'Simpan daftar'}
+            <button onClick={() => void save()} disabled={busy || locked}>
+              <IconLabel icon={Save}>{busy ? 'Menyimpan...' : 'Simpan daftar'}</IconLabel>
             </button>
             <button className="secondary" onClick={() => setEditing(false)} disabled={busy}>
               Batal

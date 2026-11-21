@@ -1,5 +1,5 @@
 import { useProfile } from '../auth';
-import { supabase } from '../lib/supabase';
+import { lecturerSource } from '../lib/search';
 import CrudPage, { type Field, type FormValues } from './CrudPage';
 
 // Halaman bersama untuk kegiatan dosen yang punya ketua, tim, dan subkategori
@@ -49,8 +49,6 @@ function link(url: string | null) {
   );
 }
 
-const dosenSource = { table: 'dosen', select: 'id, nama', order: 'nama', label: (d: any) => d.nama };
-
 const timOf = (form: FormValues) => form.anggota as string[];
 
 // nilai khusus di pilihan Ketua untuk ketua yang tidak ada di daftar dosen
@@ -73,7 +71,7 @@ function namaAnggota(k: Kegiatan) {
 }
 
 const namaSub = (s: { nama: string; kategori: { nama: string } | null } | null | undefined) =>
-  s ? `${s.kategori?.nama ?? '-'} › ${s.nama}` : '-';
+  s ? [s.kategori?.nama, s.nama].filter(Boolean).join(', ') : '-';
 
 export default function KegiatanPage({ title, table, timLabel }: Props) {
   const profile = useProfile();
@@ -112,9 +110,8 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       name: 'anggota',
       label: timLabel,
       type: 'multiselect',
-      picker: 'list',
       wide: true,
-      source: dosenSource,
+      source: lecturerSource,
       junction: {
         table: `${table}_anggota`,
         foreignKey: `${table}_id`,
@@ -134,7 +131,7 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       label: 'Ketua',
       type: 'select',
       required: true,
-      source: dosenSource,
+      source: lecturerSource,
       filterOptions: (opts, form) => opts.filter((o) => timOf(form).includes(String(o.value))),
       extraOptions: [{ value: KETUA_LUAR, label: 'Ketua dari luar daftar dosen…' }],
       getValue: (k) => (k.dosen_id != null ? String(k.dosen_id) : k.ketua_luar ? KETUA_LUAR : ''),
@@ -186,25 +183,6 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
   const canEdit = (k: Kegiatan) =>
     isAdmin || (isDosen && (k.dosen_id === myDosenId || k.created_by === profile.id));
 
-  // pencarian nama dosen (ketua/anggota) dan tahun, di luar kolom teks searchColumns
-  async function searchExtra(keyword: string) {
-    const conditions: string[] = [];
-    if (/^\d{4}$/.test(keyword)) conditions.push(`tahun.eq.${keyword}`);
-
-    const { data: dosen } = await supabase.from('dosen').select('id').ilike('nama', `%${keyword}%`);
-    const dosenIds = (dosen ?? []).map((d) => d.id);
-    if (dosenIds.length === 0) return conditions;
-    conditions.push(`dosen_id.in.(${dosenIds.join(',')})`);
-
-    const { data: anggota } = await supabase
-      .from(`${table}_anggota`)
-      .select(`${table}_id`)
-      .in('dosen_id', dosenIds);
-    const kegiatanIds = [...new Set((anggota ?? []).map((a: any) => a[`${table}_id`]))];
-    if (kegiatanIds.length > 0) conditions.push(`id.in.(${kegiatanIds.join(',')})`);
-    return conditions;
-  }
-
   // dosen!dosen_id = ketua; perlu petunjuk karena dosen juga terhubung lewat tabel anggota
   const select = [
     '*',
@@ -222,6 +200,7 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
       select={select}
       order={{ column: 'tahun', ascending: false }}
       fields={fields}
+      listColumns={{ summary: [`judul_${table}`, 'dosen_id', 'tahun'], extra: 'skema' }}
       canCreate={isAdmin || isDosen}
       canEdit={canEdit}
       validate={validate}
@@ -235,7 +214,11 @@ export default function KegiatanPage({ title, table, timLabel }: Props) {
         'anggota_mahasiswa',
         'skema',
       ]}
-      searchExtra={searchExtra}
+      searchRelations={[
+        { select: 'match_ketua:dosen!dosen_id()', column: 'match_ketua.nama', match: 'match_ketua' },
+        { select: `match_anggota:${table}_anggota(match_dosen:dosen!inner())`,
+          column: 'match_anggota.match_dosen.nama', match: 'match_anggota' },
+      ]}
       searchPlaceholder="Cari judul, nama dosen, skema, NIM, atau tahun..."
     />
   );

@@ -13,6 +13,14 @@ Penanda status (pembaruan 2026-11-06):
 
 Smoke browser 2026-11-06 mencakup: dosen (privasi → unggah PNG → isi metadata → daftar pencipta → ajukan), validator (antrean → setujui), admin (dokumen 404, log audit, master), operator (arsip unit), dashboard validator, AI mock (unggah → NEEDS_VERIFICATION, field berwarna, kembalikan nilai, baca ulang 3×, 5 kode galat, statistik admin $0).
 
+Verifikasi rebuild SISIDOS 2026-11-21. Lima akun demo lokal membuka beranda sesuai peran. PNG dan PDF sintetis melewati Edge Function dengan OpenRouter mock. PDF dapat dipratinjau pada ponsel. Uji browser mencakup pengajuan, revisi, pengajuan ulang, persetujuan, koreksi arsip, autosave 10 detik, serta unduhan CSV, XLSX, dan ZIP. Playwright (`npm run test:ui`, 13 tes) mencakup navigasi keyboard, reflow 320–1.440 px pada dua tema, perlindungan draf, konflik versi, dan picker anggota.
+
+Verifikasi penyempurnaan SISIDOS 2026-11-21. Playwright lulus 18 tes pada Chromium. Cakupannya meliputi reflow dua tema, fokus menu dan editor, akses Simpan saat menggulir, autosave 10 detik, dan persetujuan massal sesuai hasil RPC. Uji lokal lima peran memakai PDF dan PNG sintetis dengan AI mock. Operator dapat melanjutkan unggahan setelah gangguan penyimpanan. Dosen dan validator menyelesaikan pengajuan, revisi, koreksi, dan pengarsipan ulang. Pemantau mengunduh CSV, XLSX, dan ZIP.
+
+Audit Tailwind dan ikon SISIDOS. Chromium memeriksa 29 layar dengan data sintetis pada enam lebar dari 320 hingga 1.440 px dalam dua tema. Semua 348 kombinasi bebas scroll horizontal global. Kontras terendah pada teks yang diukur adalah 4,71:1. Pemilih berkas, kontrol pembesaran, dan tombol hapus lampiran memakai target minimal 44 × 44 px. Ikon Lucide pada aksi berteks disembunyikan dari pembaca layar, dan tombol ikon memakai label aksesibel.
+
+Verifikasi daftar dan formulir SISIDOS. Playwright lulus 29 tes pada Chromium, termasuk paginasi server, pemulihan halaman setelah hapus, pencarian pemilih di luar 1.000 dosen pertama, nilai master nonaktif, cakupan unggah operator, pilihan massal, dan ekspor seluruh hasil filter. Uji regresi memastikan Tab memindahkan fokus tanpa menautkan dosen pada pencipta. Audit kontrol baru pada 60 kombinasi layar, peran, dan tema mencatat kontras minimum 5,47:1, target sentuh 44 × 44 px, dan tanpa gulir horizontal. Uji database lulus 151 asersi dan uji fungsi lulus 13 tes.
+
 ---
 
 ## A. Fondasi
@@ -32,14 +40,15 @@ Smoke browser 2026-11-06 mencakup: dosen (privasi → unggah PNG → isi metadat
 ## B. Unggah & berkas
 
 - [x] **W** Privacy notice wajib sebelum unggah
-- [~] **W** Unggah PDF/JPEG/PNG (+ penanganan HEIC) — PNG teruji; PDF dan HEIC belum
+- [~] **W** Unggah PDF/JPEG/PNG (+ penanganan HEIC) — PNG dan PDF teruji; JPEG dan HEIC perlu uji
 - [~] **W** Validasi ukuran/halaman/korup/enkripsi
 - [x] **W** Operator `on_behalf_of` (wajib) dalam unit
+- [x] **N** Coba ulang per berkas melanjutkan rekaman dan objek yang sudah tersimpan. Teruji di Playwright dan Supabase lokal setelah unggah manifes gagal.
 - [~] **W** Berkas utama + lampiran; utama tidak bisa dihapus
 - [x] **W** Pratinjau / unduh dengan audit view
 - [~] **W** Rate limit unggah (60 berkas/jam, di RPC `hki_register_file`)
 - [~] **W** Info duplikat SHA-256 (tidak memblokir)
-- [~] **M** Render halaman PDF di klien untuk AI/viewer
+- [x] **M** Render halaman PDF di klien untuk AI/viewer — teruji dengan PDF sintetis dan AI mock
 - [ ] **N** Antivirus — ditunda (D10)
 
 ## C. AI
@@ -63,7 +72,7 @@ Mode D4 = manual-first. Pipeline teruji mock dan model sungguhan `google/gemini-
 - [x] **W** Edit field + optimistic concurrency / konflik
 - [x] **W** Konfirmasi field meragukan
 - [x] **W** Kembalikan nilai AI
-- [~] **W** Autosave / peringatan keluar (setara UX)
+- [x] **W** Autosave / peringatan keluar — autosave lokal 10 detik serta perlindungan draf pada perpindahan rute dan keluar akun diuji
 - [x] **W** Syarat kelengkapan submit (jenis, judul, nomor, pencipta, pemegang, berkas, konfirmasi)
 - [x] **W** Pernyataan kebenaran wajib
 - [x] **W** Hanya pemilik yang boleh ajukan
@@ -107,9 +116,9 @@ Mode D4 = manual-first. Pipeline teruji mock dan model sungguhan `google/gemini-
 
 - [~] **W** Deteksi duplikat nomor/judul
 - [x] **W** Filter daftar (q, jenis, tahun tgl_permohonan, unit, status, sumber dana, mine)
-- [~] **W** Ekspor CSV (BOM, anti formula)
-- [~] **W** Ekspor XLSX
-- [~] **W** Ekspor ZIP + batas
+- [x] **W** Ekspor CSV (BOM, anti formula) — unduhan lokal dan perlindungan sel diverifikasi
+- [x] **W** Ekspor XLSX — unduhan lokal berisi lembar kerja
+- [x] **W** Ekspor ZIP + batas — unduhan lokal berisi berkas dan manifest; UI membatasi ZIP pada 300 dokumen
 - [x] **W** Dashboard (status, jenis, tahun, unit, sumber dana, antrean umur, rata hari, segera berakhir)
 - [~] **W** Portofolio dosen terarsip (cetak)
 
@@ -146,4 +155,4 @@ Modul HAKI dianggap **setara sumber** hanya jika:
 
 MVP boleh di-ship dengan label **“MVP — belum setara app_haki”** selama checklist menunjukkan apa yang masih `[ ]`.
 
-**Status saat ini: MVP — belum setara app_haki.** Alur AI mock + model sungguhan Gemini 3.1 + hak akses lima peran teruji (`npm run test:db` = 151 asersi, `npm run test:fn` = 13 tes Deno). Yang tersisa: item `[~]` UI/ekspor.
+**Status saat ini: MVP — belum setara app_haki.** Alur AI mock + model sungguhan Gemini 3.1 + hak akses lima peran teruji (`npm run test:db` = 151 asersi, `npm run test:fn` = 13 tes Deno). Lihat item `[~]` untuk verifikasi berikutnya.

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { loadMaster, masterLabel } from '../../haki/api';
+import AsyncState from '../../components/AsyncState';
+import { loadMaster, masterLabel, toHakiError } from '../../haki/api';
 import { JENIS_LABEL, SOON_DAYS, WORKFLOW_LABEL } from '../../haki/constants';
 import { daysBetween, daysUntil, fmtDate } from '../../haki/format';
-import type { HkiListRow, MasterItem, WorkflowStatus } from '../../haki/types';
+import type { HkiListRow, WorkflowStatus } from '../../haki/types';
 import { supabase } from '../../lib/supabase';
+import { useRemoteData } from '../../lib/useRemoteData';
 
 type Count = [string, number];
 
@@ -26,7 +27,7 @@ function Bars({ title, data }: { title: string; data: Count[] }) {
           {data.map(([label, n]) => (
             <li key={label}>
               <span className="bar-label">{label}</span>
-              <span className="bar-track">
+              <span className="bar-track" aria-hidden="true">
                 <span className="bar-fill" style={{ width: `${(n / max) * 100}%` }} />
               </span>
               <span className="bar-value">{n}</span>
@@ -39,26 +40,31 @@ function Bars({ title, data }: { title: string; data: Count[] }) {
 }
 
 export default function HakiDashboardPage() {
-  const [rows, setRows] = useState<HkiListRow[] | null>(null);
-  const [master, setMaster] = useState<MasterItem[]>([]);
+  const remote = useRemoteData(async () => {
+    const master = await loadMaster();
+    const rows: HkiListRow[] = [];
+    let total = 0;
+    for (let from = 0; from < 20000; from += 1000) {
+      const { data, error, count } = await supabase
+        .from('hki_record_list')
+        .select('id, judul, jenis, tahun, unit_nama, sumber_dana, workflow_status, submitted_at, validated_at, berlaku_akhir, owner_nama', from === 0 ? { count: 'exact' } : undefined)
+        .order('id')
+        .range(from, from + 999);
+      if (error) throw toHakiError(error);
+      rows.push(...((data as HkiListRow[]) ?? []));
+      total = count ?? total;
+      if (!data || data.length < 1000) break;
+    }
+    return { rows, master, total };
+  });
 
-  useEffect(() => {
-    loadMaster().then(setMaster);
-    (async () => {
-      const out: HkiListRow[] = [];
-      for (let from = 0; from < 20000; from += 1000) {
-        const { data } = await supabase
-          .from('hki_record_list')
-          .select('id, judul, jenis, tahun, unit_nama, sumber_dana, workflow_status, submitted_at, validated_at, berlaku_akhir, owner_nama')
-          .range(from, from + 999);
-        out.push(...((data as HkiListRow[]) ?? []));
-        if ((data ?? []).length < 1000) break;
-      }
-      setRows(out);
-    })();
-  }, []);
-
-  if (!rows) return <p>Memuat...</p>;
+  if (!remote.data) return (
+    <div className="page">
+      <h1>Dashboard HKI</h1>
+      <AsyncState error={remote.error} loading={remote.loading} onRetry={remote.retry} />
+    </div>
+  );
+  const { rows, master, total } = remote.data;
 
   const archived = rows.filter((r) => r.workflow_status === 'ARCHIVED');
   const queue = rows.filter((r) => r.workflow_status === 'SUBMITTED');
@@ -80,6 +86,8 @@ export default function HakiDashboardPage() {
     <div className="page">
       <h1>Dashboard HKI</h1>
       <p className="muted">Ringkasan dokumen dalam cakupan akses Anda. Statistik arsip memakai tahun tanggal permohonan.</p>
+      {total > rows.length && <p className="notice">Grafik menampilkan {rows.length.toLocaleString('id-ID')} dari {total.toLocaleString('id-ID')} dokumen.</p>}
+      {!rows.length && <AsyncState empty="Belum ada dokumen dalam cakupan akses Anda." />}
       <div className="stats stats-4">
         <div className="stat">
           <div className="stat-label">Terarsip</div>

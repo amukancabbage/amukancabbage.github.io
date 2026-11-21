@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { downloadBlob, masterLabel, rpc } from './api';
+import { downloadBlob, masterLabel, rpc, toHakiError } from './api';
 import { EXPORT_MAX_ROWS, EXPORT_MAX_ZIP, JENIS_LABEL, STATUS_HKI_LABEL, WORKFLOW_LABEL } from './constants';
 import type { HkiListRow, MasterItem } from './types';
 import { zip } from './zip';
@@ -127,10 +127,11 @@ export async function zipFiles(rows: HkiListRow[], master: MasterItem[], onProgr
   const ids = rows.map((r) => r.id);
   const files: { record_id: string; storage_path: string; nama_asli: string; jenis: string }[] = [];
   for (let i = 0; i < ids.length; i += 100) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('hki_files')
       .select('record_id, storage_path, nama_asli, jenis')
       .in('record_id', ids.slice(i, i + 100));
+    if (error) throw toHakiError(error);
     files.push(...(data ?? []));
   }
   let done = 0;
@@ -147,10 +148,11 @@ export async function zipFiles(rows: HkiListRow[], master: MasterItem[], onProgr
 }
 
 // ambil semua baris sesuai filter (per 1000) sampai batas ekspor
-export async function fetchAll(build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null }>): Promise<HkiListRow[]> {
+export async function fetchAll(build: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }>): Promise<HkiListRow[]> {
   const out: HkiListRow[] = [];
   for (let from = 0; from < EXPORT_MAX_ROWS; from += 1000) {
-    const { data } = await build(from, Math.min(from + 999, EXPORT_MAX_ROWS - 1));
+    const { data, error } = await build(from, Math.min(from + 999, EXPORT_MAX_ROWS - 1));
+    if (error) throw toHakiError(error);
     const rows = (data as HkiListRow[]) ?? [];
     out.push(...rows);
     if (rows.length < 1000) break;

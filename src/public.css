@@ -1,0 +1,177 @@
+.public-shell {
+  --public-gutter: clamp(1rem, 4vw, 2.5rem);
+}
+
+.public-container {
+  width: min(calc(100% - 2 * var(--public-gutter)), 75rem);
+  margin-inline: auto;
+}
+
+.public-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.public-brand {
+  color: var(--text-h);
+  font-size: 1.125rem;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+}
+
+.public-nav-link {
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 0.9375rem;
+  font-weight: 640;
+  text-decoration: none;
+}
+
+.public-nav-link:hover {
+  border-color: var(--control-border);
+  background: var(--code-bg);
+}
+
+.landing-hero {
+  gap: clamp(1.75rem, 4.4vw, 4.75rem);
+  padding-block: clamp(2rem, 5vw, 4.25rem);
+}
+
+.landing-hero h1 {
+  max-width: 13ch;
+  margin-bottom: 1rem;
+  font-size: clamp(2.375rem, 5.2vw, 4.625rem);
+  font-weight: 750;
+  letter-spacing: -0.052em;
+  line-height: 1.06;
+}
+
+.landing-hero p {
+  max-width: 42ch;
+  margin-bottom: 1.5rem;
+  font-size: clamp(1rem, 1.5vw, 1.125rem);
+  line-height: 1.6;
+}
+
+.landing-action {
+  min-height: 48px;
+  padding-inline: 1.25rem;
+}
+
+.landing-image {
+  aspect-ratio: 8 / 5;
+  height: auto;
+  background: var(--code-bg);
+}
+
+.landing-services {
+  padding-block: clamp(1.5rem, 3.4vw, 2.75rem);
+  border-block: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.landing-services h2 {
+  margin-bottom: 1rem;
+  font-size: 1.375rem;
+}
+
+.landing-service {
+  padding-block: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.landing-service:last-child { padding-bottom: 0; }
+.landing-service > svg { margin-top: 2px; color: var(--accent); }
+.landing-service h3 { margin-bottom: 0.375rem; }
+.landing-service p { margin: 0; font-size: 0.9375rem; }
+
+.login-main {
+  align-items: start;
+  padding-block: clamp(1.75rem, 5vw, 4.5rem);
+}
+
+.login-layout { max-width: 28rem; }
+.login-card { padding: clamp(1.25rem, 4vw, 3.25rem); }
+.login-intro { margin-bottom: 0.25rem; }
+
+.login-card h1 {
+  margin-bottom: 0.5rem;
+  font-size: clamp(2rem, 3.7vw, 2.75rem);
+  font-weight: 720;
+}
+
+.login-card p, .login-help p { margin: 0; }
+.login-card .field > :is(span, label) { color: var(--text-h); font-weight: 620; }
+.login-card input, .login-card button[type='submit'] { min-height: 48px; }
+.password-control input { padding-inline-end: 52px; }
+.password-control input::-ms-reveal { display: none; }
+
+.password-toggle.secondary {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.password-toggle.secondary:not(:disabled):hover { border-color: transparent; }
+.password-toggle:focus-visible { outline-offset: -3px; }
+
+.login-error {
+  padding: 0.625rem 0.75rem;
+  border-inline-start: 3px solid var(--bad);
+  border-radius: 4px;
+  background: var(--bad-bg);
+  font-size: 0.9375rem;
+}
+
+.login-photo { display: none; }
+
+.login-help {
+  padding: 1.25rem clamp(1.25rem, 4vw, 2rem);
+  border-top: 1px solid var(--border);
+  background: var(--code-bg);
+  font-size: 0.9375rem;
+}
+
+.login-help h2 { margin-bottom: 0.375rem; font-size: 1rem; }
+.login-help > svg { color: var(--accent); }
+
+@media (min-width: 768px) {
+  .landing-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+  .landing-image { aspect-ratio: 4 / 3; max-height: 27rem; }
+  .landing-services h2 { margin-bottom: 1.25rem; }
+  .landing-service-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 2.3vw, 2rem); }
+  .landing-service { padding-block: 0; border-top: 0; }
+  .landing-service + .landing-service {
+    padding-inline-start: clamp(1rem, 2.3vw, 2rem);
+    border-inline-start: 1px solid var(--border);
+  }
+
+  .login-main { align-items: center; }
+  .login-layout {
+    max-width: 58rem;
+    min-height: 28.5rem;
+    grid-template-columns: minmax(0, 0.94fr) minmax(0, 1fr);
+  }
+  .login-photo {
+    display: block;
+    flex: 1;
+    /* Foto oleh Fer Troulik, lisensi Unsplash. https://unsplash.com/photos/modern-library-interior-with-floor-to-ceiling-bookshelves-TQ8ICns1tgE */
+    background: #0b1727 center 55% / cover no-repeat;
+    background-image: image-set(url('./assets/library-small.webp') 1x, url('./assets/library.webp') 2x);
+  }
+  .login-help {
+    padding-block: 1.5rem;
+    border-top: 0;
+    background: #0b1727;
+    color: #cbd7e4;
+  }
+  .login-help h2 { color: #f1f5f9; }
+  .login-help > svg { color: #5eead4; }
+}

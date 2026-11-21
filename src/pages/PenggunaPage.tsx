@@ -1,4 +1,5 @@
 import CrudPage, { type Field } from '../components/CrudPage';
+import { lecturerSource, unitSource } from '../lib/search';
 import { roleLabel, type Profile } from '../types';
 
 const fields: Field<Profile>[] = [
@@ -15,14 +16,14 @@ const fields: Field<Profile>[] = [
     name: 'dosen_id',
     label: 'Data Dosen',
     type: 'select',
-    source: { table: 'dosen', select: 'id, nama', order: 'nama', label: (d) => d.nama },
+    source: lecturerSource,
     render: (p) => p.dosen?.nama ?? '-',
   },
   {
     name: 'unit_id',
     label: 'Cakupan Unit (operator wajib; validator kosong = seluruh institusi)',
     type: 'select',
-    source: { table: 'units', select: 'id, nama', order: 'nama', label: (u) => u.nama },
+    source: unitSource,
     render: (p) => p.unit?.nama ?? '-',
   },
 ];
@@ -31,7 +32,7 @@ export default function PenggunaPage() {
   return (
     <CrudPage<Profile>
       title="Pengguna"
-      description="Akun baru dibuat di Supabase → Authentication → Add user, lalu atur role-nya di sini. Dosen dihubungkan ke Data Dosen. Operator wajib punya unit. Validator tanpa unit berarti memvalidasi seluruh institusi."
+      description="Buat akun di Supabase dengan memilih Add user pada halaman Authentication. Atur perannya di sini dan tautkan akun dosen ke Data Dosen. Operator wajib memiliki unit. Validator tanpa unit dapat memvalidasi dokumen seluruh institusi."
       table="profiles"
       select="id, email, role, dosen_id, unit_id, dosen(nama), unit:units(nama)"
       order={{ column: 'email' }}
@@ -39,6 +40,9 @@ export default function PenggunaPage() {
       canCreate={false}
       canDelete={() => false}
       pageSize={10}
+      searchColumns={['email']}
+      searchPlaceholder="Cari email"
+      listFilter={{ kind: 'options', param: 'role', column: 'role', label: 'Peran', options: roleLabel }}
     />
   );
 }

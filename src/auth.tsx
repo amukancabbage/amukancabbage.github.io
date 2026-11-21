@@ -3,9 +3,11 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import type { Profile } from './types';
 
+type ProfileResult = { id: string; profile: Profile | null; error: string | null };
 type AuthState = {
   session: Session | null;
   profile: Profile | null;
+  profileError: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -13,52 +15,56 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+async function loadProfile(id: string): Promise<ProfileResult> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, role, dosen_id, unit_id, privacy_notice_accepted_at, dosen(nama), unit:units(nama)')
+    .eq('id', id)
+    .maybeSingle();
+  return {
+    id,
+    profile: (data as unknown as Profile | null) ?? null,
+    error: error ? 'Profil gagal dimuat. Periksa koneksi dan coba lagi.' : null,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [result, setResult] = useState<ProfileResult | null>(null);
+  const userId = session?.user.id;
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (!data.session) setLoading(false);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
     return () => data.subscription.unsubscribe();
   }, []);
 
-  const userId = session?.user.id;
-
-  async function loadProfile(id: string) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, email, role, dosen_id, unit_id, privacy_notice_accepted_at, dosen(nama), unit:units(nama)')
-      .eq('id', id)
-      .single();
-    setProfile((data as unknown as Profile | null) ?? null);
-  }
-
-  // Profil (role & dosen) diambil terpisah dari onAuthStateChange
-  // karena memanggil supabase di dalam callback tersebut bisa macet
+  // Baca profil di luar callback Auth agar permintaan Supabase tidak saling menunggu.
   useEffect(() => {
-    if (!userId) {
-      setProfile(null);
-      return;
-    }
-    setLoading(true);
-    loadProfile(userId).then(() => setLoading(false));
+    if (!userId) { setResult(null); return; }
+    let alive = true;
+    void loadProfile(userId).then((next) => { if (alive) setResult(next); });
+    return () => { alive = false; };
   }, [userId]);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   }
 
   async function refreshProfile() {
-    if (userId) await loadProfile(userId);
+    if (userId) setResult(await loadProfile(userId));
   }
 
+  const current = result?.id === userId ? result : null;
   return (
-    <AuthContext.Provider value={{ session, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      session: session ?? null,
+      profile: current?.profile ?? null,
+      profileError: current?.error ?? null,
+      loading: session === undefined || (!!userId && !current),
+      signOut,
+      refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );

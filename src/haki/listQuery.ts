@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase';
+import { textCondition } from '../lib/search';
+import type { ListSorts } from '../lib/pagination';
 import type { Unit } from '../types';
 
 export type ListFilters = {
@@ -10,19 +12,12 @@ export type ListFilters = {
   sumber: string;
   conf: '' | 'rendah' | 'sedang' | 'tinggi';
   umur: string;
-  sort: string;
 };
 
-const KEYS: (keyof ListFilters)[] = ['q', 'jenis', 'tahun', 'unit', 'status', 'sumber', 'conf', 'umur', 'sort'];
+const KEYS: (keyof ListFilters)[] = ['q', 'jenis', 'tahun', 'unit', 'status', 'sumber', 'conf', 'umur'];
 
 export function readFilters(sp: URLSearchParams): ListFilters {
   return Object.fromEntries(KEYS.map((k) => [k, sp.get(k) ?? ''])) as ListFilters;
-}
-
-export function writeFilters(f: Partial<ListFilters>): URLSearchParams {
-  const sp = new URLSearchParams();
-  for (const k of KEYS) if (f[k]) sp.set(k, String(f[k]));
-  return sp;
 }
 
 // unit beserta seluruh turunannya
@@ -41,34 +36,39 @@ export function descendants(units: Pick<Unit, 'id' | 'parent_id'>[], root: numbe
   return [...out];
 }
 
-export const SORTS: Record<string, { column: string; ascending: boolean; label: string }> = {
-  baru: { column: 'updated_at', ascending: false, label: 'Terbaru diperbarui' },
-  lama_antre: { column: 'submitted_at', ascending: true, label: 'Paling lama menunggu' },
-  tgl_permohonan: { column: 'tgl_permohonan', ascending: false, label: 'Tanggal permohonan' },
-  judul: { column: 'judul', ascending: true, label: 'Judul A–Z' },
+export const SORTS: ListSorts = {
+  baru: { column: 'updated_at', ascending: false, label: 'Pembaruan', chronological: true },
+  lama_antre: { column: 'submitted_at', ascending: true, label: 'Pengajuan', chronological: true },
+  tgl_permohonan: { column: 'tgl_permohonan', ascending: false, label: 'Tanggal permohonan', chronological: true },
+  judul: { column: 'judul', ascending: true, label: 'Judul' },
 };
 
-type Options = { units: Pick<Unit, 'id' | 'parent_id'>[]; high: number; low: number; baseStatuses?: string[]; defaultSort: string };
+type Options = {
+  units: Pick<Unit, 'id' | 'parent_id'>[];
+  high: number;
+  low: number;
+  baseStatuses?: string[];
+  order: { column: string; ascending: boolean };
+};
 
 // filter dari URL ke query hki_record_list (RLS tetap membatasi baris)
-export function buildQuery(f: ListFilters, opts: Options, count = true) {
-  let query = supabase.from('hki_record_list').select('*', count ? { count: 'exact' } : undefined);
+export function buildQuery(f: ListFilters, opts: Options, count = true, head = false) {
+  let query = supabase.from('hki_record_list').select(head ? 'id' : '*', count ? { count: 'exact', head } : undefined);
   if (opts.baseStatuses) query = query.in('workflow_status', opts.baseStatuses);
   if (f.status) query = query.eq('workflow_status', f.status);
   if (f.jenis) query = query.eq('jenis', f.jenis);
-  if (f.tahun) query = query.eq('tahun', Number(f.tahun));
+  if (/^\d{4}$/.test(f.tahun)) query = query.eq('tahun', Number(f.tahun));
   if (f.sumber) query = query.eq('sumber_dana', f.sumber);
-  if (f.unit) query = query.in('unit_id', descendants(opts.units, Number(f.unit)));
+  if (/^\d+$/.test(f.unit)) query = query.in('unit_id', descendants(opts.units, Number(f.unit)));
   if (f.conf === 'rendah') query = query.lt('min_confidence', opts.low);
   if (f.conf === 'sedang') query = query.gte('min_confidence', opts.low).lt('min_confidence', opts.high);
   if (f.conf === 'tinggi') query = query.gte('min_confidence', opts.high);
-  if (f.umur) query = query.lte('submitted_at', new Date(Date.now() - Number(f.umur) * 86400000).toISOString());
-  const q = f.q.replace(/[,()%*]/g, ' ').trim();
+  if (['3', '7', '14'].includes(f.umur)) query = query.lte('submitted_at', new Date(Date.now() - Number(f.umur) * 86400000).toISOString());
+  const q = f.q.trim();
   if (q) {
     query = query.or(
-      ['judul', 'no_permohonan', 'no_sertifikat', 'pencipta', 'owner_nama'].map((c) => `${c}.ilike.*${q}*`).join(','),
+      ['judul', 'no_permohonan', 'no_sertifikat', 'pencipta', 'owner_nama'].map((column) => textCondition(column, q)).join(','),
     );
   }
-  const sort = SORTS[f.sort] ?? SORTS[opts.defaultSort];
-  return query.order(sort.column, { ascending: sort.ascending, nullsFirst: false }).order('id');
+  return query.order(opts.order.column, { ascending: opts.order.ascending, nullsFirst: false }).order('id');
 }

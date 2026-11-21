@@ -1,6 +1,8 @@
+import { ShieldCheck } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useAuth, useProfile } from '../../auth';
 import { errorText, rpc } from '../../haki/api';
+import { IconLabel } from '../AppIcon';
 
 // pemberitahuan privasi wajib disetujui sebelum unggah
 export default function PrivacyGate({ children }: { children: ReactNode }) {
@@ -41,9 +43,9 @@ export default function PrivacyGate({ children }: { children: ReactNode }) {
         <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
         Saya memahami dan menyetujui pemrosesan data di atas.
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <button disabled={!checked || busy} onClick={accept}>
-        {busy ? 'Menyimpan...' : 'Setuju dan lanjutkan'}
+        <IconLabel icon={ShieldCheck}>{busy ? 'Menyimpan...' : 'Setuju dan lanjutkan'}</IconLabel>
       </button>
     </div>
   );

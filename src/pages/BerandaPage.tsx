@@ -1,5 +1,7 @@
+import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useProfile } from '../auth';
+import { IconLabel } from '../components/AppIcon';
+import AsyncState from '../components/AsyncState';
 import { supabase } from '../lib/supabase';
 
 // hasil fungsi SQL rekap_kegiatan (supabase/beranda.sql); prodi_id null = baris total
@@ -15,12 +17,12 @@ function Stat({ label, value }: { label: string; value: number | undefined }) {
 }
 
 export default function BerandaPage() {
-  const profile = useProfile();
   const [tahun, setTahun] = useState('');
   const [daftarTahun, setDaftarTahun] = useState<number[]>([]);
   const [rekap, setRekap] = useState<Rekap[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     supabase.rpc('tahun_kegiatan').then(({ data }) => {
@@ -37,21 +39,21 @@ export default function BerandaPage() {
         setRekap((data as Rekap[] | null) ?? []);
         setLoading(false);
       });
-  }, [tahun]);
+  }, [tahun, reload]);
 
   const total = rekap.find((r) => r.prodi_id == null);
   const perProdi = rekap.filter((r) => r.prodi_id != null);
-  const periode = tahun ? `Tahun ${tahun}` : 'Semua tahun';
+  const periode = tahun ? `tahun ${tahun}` : 'semua tahun';
 
   return (
     <section className="page">
       <div className="page-header">
         <div>
-          <h1>Beranda</h1>
-          <p className="muted">Selamat datang, {profile.dosen?.nama ?? profile.email}.</p>
+          <h1>Rekap Akademik</h1>
+          <p className="muted">Jumlah penelitian dan pengabdian berdasarkan tahun dan program studi.</p>
         </div>
         <label className="filter">
-          <span>Tahun</span>
+          <IconLabel icon={CalendarDays}>Tahun</IconLabel>
           <select value={tahun} onChange={(e) => setTahun(e.target.value)}>
             <option value="">Semua tahun</option>
             {daftarTahun.map((t) => (
@@ -63,15 +65,16 @@ export default function BerandaPage() {
         </label>
       </div>
 
-      {error && <p className="error">{error}</p>}
+      <AsyncState error={error} loading={loading} onRetry={() => setReload((n) => n + 1)} />
 
-      <h2 className="section-title">Total · {periode}</h2>
+      <h2 className="section-title">Total untuk {periode}</h2>
       <div className="stats">
         <Stat label="Penelitian" value={loading ? undefined : total?.penelitian} />
         <Stat label="Pengabdian" value={loading ? undefined : total?.pengabdian} />
       </div>
 
-      <h2 className="section-title">Per Program Studi · {periode}</h2>
+      <h2 className="section-title">Per program studi untuk {periode}</h2>
+      {!loading && !error && perProdi.length === 0 && <AsyncState empty="Belum ada data per program studi untuk periode ini." />}
       <div className="prodi-grid">
         {perProdi.map((r) => (
           <div key={r.prodi_id} className="card prodi-card">

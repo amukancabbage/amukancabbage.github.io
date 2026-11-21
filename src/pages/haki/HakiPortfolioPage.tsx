@@ -1,26 +1,28 @@
-import { useEffect, useState } from 'react';
+import { Printer } from 'lucide-react';
 import { useProfile } from '../../auth';
-import { loadMaster, masterLabel } from '../../haki/api';
+import { IconLabel } from '../../components/AppIcon';
+import AsyncState from '../../components/AsyncState';
+import { loadMaster, masterLabel, toHakiError } from '../../haki/api';
 import { JENIS_LABEL, STATUS_HKI_LABEL } from '../../haki/constants';
 import { fmtDate } from '../../haki/format';
-import type { HkiListRow, MasterItem } from '../../haki/types';
+import type { HkiListRow } from '../../haki/types';
 import { supabase } from '../../lib/supabase';
+import { useRemoteData } from '../../lib/useRemoteData';
 
 // HKI terarsip milik sendiri / dikonfirmasi sebagai pencipta; siap cetak atau simpan PDF
 export default function HakiPortfolioPage() {
   const profile = useProfile();
-  const [rows, setRows] = useState<HkiListRow[] | null>(null);
-  const [master, setMaster] = useState<MasterItem[]>([]);
-
-  useEffect(() => {
-    loadMaster().then(setMaster);
-    supabase
-      .from('hki_record_list')
-      .select('*')
-      .eq('workflow_status', 'ARCHIVED')
-      .order('tgl_permohonan', { ascending: false, nullsFirst: false })
-      .then(({ data }) => setRows((data as HkiListRow[]) ?? []));
-  }, []);
+  const remote = useRemoteData(async () => {
+    const [master, result] = await Promise.all([
+      loadMaster(),
+      supabase.from('hki_record_list').select('*').eq('workflow_status', 'ARCHIVED')
+        .order('tgl_permohonan', { ascending: false, nullsFirst: false }),
+    ]);
+    if (result.error) throw toHakiError(result.error);
+    return { master, rows: (result.data as HkiListRow[]) ?? [] };
+  });
+  const rows = remote.data?.rows;
+  const master = remote.data?.master ?? [];
 
   return (
     <div className="page portfolio">
@@ -29,34 +31,31 @@ export default function HakiPortfolioPage() {
           <h1>Portofolio HKI</h1>
           <p className="muted">Dokumen terarsip yang Anda miliki atau Anda konfirmasi sebagai pencipta.</p>
         </div>
-        <button onClick={() => window.print()}>Cetak / simpan PDF</button>
+        <button onClick={() => window.print()} disabled={!rows?.length}><IconLabel icon={Printer}>Cetak / simpan PDF</IconLabel></button>
       </div>
       <div className="print-only">
         <h1>Portofolio Hak Kekayaan Intelektual</h1>
         <p>
-          {profile.dosen?.nama} · dicetak {fmtDate(new Date().toISOString())}
+          Dicetak pada {fmtDate(new Date().toISOString())}{profile.dosen?.nama ? ` untuk ${profile.dosen.nama}` : ''}.
         </p>
       </div>
-      {!rows ? (
-        <p>Memuat...</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">Belum ada HKI terarsip.</p>
-      ) : (
+      <AsyncState loading={remote.loading} error={remote.error} onRetry={remote.retry} empty={rows?.length === 0 ? 'Belum ada HKI terarsip.' : undefined} />
+      {!!rows?.length && (
         <ol className="portfolio-list">
           {rows.map((r) => (
             <li key={r.id}>
               <strong>{r.judul}</strong>
               <div>
-                {r.jenis ? JENIS_LABEL[r.jenis] : '-'}
-                {r.status_hki ? ` · ${STATUS_HKI_LABEL[r.status_hki]}` : ''}
-                {r.no_sertifikat ? ` · No. ${r.no_sertifikat}` : ''}
-                {r.no_permohonan ? ` · Permohonan ${r.no_permohonan}` : ''}
+                {r.jenis ? JENIS_LABEL[r.jenis] : 'Jenis belum diisi'}
+                {r.status_hki ? `, ${STATUS_HKI_LABEL[r.status_hki]}` : ''}
+                {r.no_sertifikat ? `, sertifikat ${r.no_sertifikat}` : ''}
+                {r.no_permohonan ? `, permohonan ${r.no_permohonan}` : ''}
                 {r.tgl_permohonan ? ` (${fmtDate(r.tgl_permohonan)})` : ''}
               </div>
               <div className="muted">
-                Pencipta: {r.pencipta ?? '-'} · Pemegang: {r.pemegang ?? '-'}
-                {r.berlaku_akhir ? ` · Berlaku s.d. ${fmtDate(r.berlaku_akhir)}` : ''}
-                {r.sumber_dana ? ` · ${masterLabel(master, 'sumber_dana', r.sumber_dana)}` : ''}
+                Pencipta {r.pencipta ?? 'belum tercatat'}. Pemegang hak {r.pemegang ?? 'belum tercatat'}.
+                {r.berlaku_akhir ? ` Berlaku sampai ${fmtDate(r.berlaku_akhir)}.` : ''}
+                {r.sumber_dana ? ` Sumber dana ${masterLabel(master, 'sumber_dana', r.sumber_dana)}.` : ''}
               </div>
             </li>
           ))}

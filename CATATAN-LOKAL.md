@@ -269,6 +269,7 @@ Di **Konfigurasi AI HAKI** (cloud):
 | `npm run lint` | Oxlint |
 | `npm run test:db` | Tes pgTAP hak akses HAKI per peran + alur AI (Supabase lokal harus jalan) |
 | `npm run test:fn` | Tes Deno logika murni ekstraksi/pencocokan nama |
+| `npm run test:ui` | Playwright Chromium dengan data sintetis. Siapkan browser sekali dengan `npx playwright install chromium`. |
 | `npm run mock:ai` | Server tiruan OpenRouter di port 9999 |
 | `npm run uji:ai` | Probe ZDR / unggah sertifikat contoh dan tulis `data/hasil-uji-ai.csv` |
 | `npx supabase start` | Nyalakan stack lokal |

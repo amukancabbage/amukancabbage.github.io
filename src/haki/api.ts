@@ -56,7 +56,8 @@ export type HakiSettings = {
 };
 
 export async function loadSettings(): Promise<HakiSettings> {
-  const { data } = await supabase.from('hki_settings').select('key, value');
+  const { data, error } = await supabase.from('hki_settings').select('key, value');
+  if (error) throw toHakiError(error);
   const raw = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
   return {
     aiEnabled: raw['ai.enabled'] === true,
@@ -69,7 +70,8 @@ export async function loadSettings(): Promise<HakiSettings> {
 }
 
 export async function loadMaster(): Promise<MasterItem[]> {
-  const { data } = await supabase.from('hki_master_items').select('*').order('kategori').order('urutan');
+  const { data, error } = await supabase.from('hki_master_items').select('*').order('kategori').order('urutan');
+  if (error) throw toHakiError(error);
   return (data as MasterItem[]) ?? [];
 }
 

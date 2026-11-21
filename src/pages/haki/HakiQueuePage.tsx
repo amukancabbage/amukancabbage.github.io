@@ -1,80 +1,63 @@
+import { Check, ListChecks } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { IconLabel } from '../../components/AppIcon';
+import AsyncState from '../../components/AsyncState';
+import Dialog from '../../components/Dialog';
+import ResponsiveList, { type ListColumn } from '../../components/ResponsiveList';
 import RecordFilters from '../../components/haki/RecordFilters';
-import { errorText, loadMaster, loadSettings, rpc, type HakiSettings } from '../../haki/api';
+import { errorText, rpc } from '../../haki/api';
 import { BULK_REASON, JENIS_LABEL } from '../../haki/constants';
 import { daysBetween } from '../../haki/format';
-import { buildQuery, readFilters, writeFilters } from '../../haki/listQuery';
 import { saveQueue } from '../../haki/queueContext';
-import type { HkiListRow, MasterItem } from '../../haki/types';
-import { supabase } from '../../lib/supabase';
-import type { Unit } from '../../types';
+import type { HkiListRow } from '../../haki/types';
+import { useRecordList } from '../../haki/useRecordList';
 
 const PAGE = 50;
-
 type BulkResult = { approved: string[]; skipped: { id: string; reason: string }[] };
 
 export default function HakiQueuePage() {
-  const [sp, setSp] = useSearchParams();
   const location = useLocation();
-  const filters = readFilters(sp);
-  const page = Number(sp.get('page') ?? 1);
-  const [rows, setRows] = useState<HkiListRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [units, setUnits] = useState<Unit[]>([]);
-  const [master, setMaster] = useState<MasterItem[]>([]);
-  const [settings, setSettings] = useState<HakiSettings | null>(null);
+  const list = useRecordList('queue', PAGE);
+  const { rows } = list;
+  const [selecting, setSelecting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [result, setResult] = useState<BulkResult | null>(null);
+  const [result, setResult] = useState<(BulkResult & { titles: Record<string, string> }) | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-
+  const [error, setError] = useState('');
   useEffect(() => {
-    supabase.from('units').select('*').order('nama').then(({ data }) => setUnits((data as Unit[]) ?? []));
-    loadMaster().then(setMaster);
-    loadSettings().then(setSettings);
-  }, []);
+    setSelecting(false);
+    setConfirming(false);
+    setSelected(new Set());
+  }, [location.search, rows]);
 
-  useEffect(() => {
-    if (!settings) return;
-    let alive = true;
-    buildQuery(filters, { units, high: settings.high, low: settings.low, baseStatuses: ['SUBMITTED'], defaultSort: 'lama_antre' })
-      .range((page - 1) * PAGE, page * PAGE - 1)
-      .then(({ data, count, error: err }) => {
-        if (!alive) return;
-        if (err) setError(err.message);
-        const list = (data as HkiListRow[]) ?? [];
-        setRows(list);
-        setTotal(count ?? 0);
-        setSelected(new Set());
-        // konteks Sebelumnya/Berikutnya untuk layar dokumen
-        saveQueue(
-          list.map((r) => r.id),
-          `${location.pathname}${location.search}`,
-        );
-      });
-    return () => {
-      alive = false;
-    };
-  }, [sp.toString(), settings, units.length, reload]); // eslint-disable-line react-hooks/exhaustive-deps
+  function changeMode() {
+    setSelecting(!selecting);
+    setSelected(new Set());
+  }
 
-  function toggle(id: string) {
-    setSelected((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
+  function toggle(id: string, checked: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
     });
   }
 
   async function bulk() {
-    if (!confirm(`Setujui ${selected.size} dokumen? Server hanya menyetujui yang benar-benar memenuhi syarat.`)) return;
+    if (busy || !selected.size || selected.size > 100) return;
+    setConfirming(false);
     setBusy(true);
-    setError(null);
+    setError('');
+    setResult(null);
     try {
-      setResult(await rpc<BulkResult>('hki_bulk_approve', { p_ids: [...selected] }));
-      setReload((n) => n + 1);
+      const response = await rpc<BulkResult>('hki_bulk_approve', { p_ids: [...selected] });
+      setResult({ ...response, titles: Object.fromEntries(rows.map((row) => [row.id, row.judul || '(Tanpa judul)'])) });
+      setSelecting(false);
+      setSelected(new Set());
+      list.retry();
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -83,113 +66,79 @@ export default function HakiQueuePage() {
   }
 
   // UI "layak cepat" lebih longgar; keputusan akhir di server
-  const quick = (r: HkiListRow) => settings != null && r.min_confidence != null && r.min_confidence >= settings.high;
-  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const quick = (row: HkiListRow) => list.settings != null && row.min_confidence != null && row.min_confidence >= list.settings.high;
+  const columns: ListColumn<HkiListRow>[] = [
+    { id: 'judul', label: 'Judul', render: (row) => (
+      <Link to={'/haki/dokumen/' + row.id} onClick={() => saveQueue(rows.map((item) => item.id), location.pathname + location.search)}>
+        {row.judul || '(Tanpa judul)'}
+      </Link>
+    ) },
+    { label: 'Dosen', render: (row) => row.owner_nama ?? '–' },
+    { id: 'submitted_at', label: 'Menunggu', render: (row) => row.submitted_at ? daysBetween(row.submitted_at) + ' hari' : '–' },
+    { label: 'Keyakinan', visibility: 'desktop', render: (row) => row.min_confidence == null ? 'Tanpa skor AI' : Math.round(row.min_confidence * 100) + '%' },
+    { label: 'Jenis', visibility: 'detail', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
+    { label: 'Unit', visibility: 'detail', render: (row) => row.unit_nama ?? '–' },
+  ];
+  const showRows = !list.loading && !list.error;
 
   return (
     <div className="page">
-      <h1>Antrean Validasi</h1>
-      <p className="muted">Dokumen yang menunggu keputusan dalam cakupan unit Anda.</p>
-      <RecordFilters
-        value={filters}
-        units={units}
-        master={master}
-        showQueue
-        onChange={(f) => setSp(writeFilters(f))}
-      />
-      {error && <p className="error">{error}</p>}
+      <header className="page-header">
+        <h1>Antrean Validasi</h1>
+        {showRows && rows.length > 0 && (
+          <button type="button" className="secondary" aria-expanded={selecting} aria-controls="bulk-selection" disabled={busy} onClick={changeMode}>
+            {selecting ? 'Selesai memilih' : 'Pilih dokumen'}
+          </button>
+        )}
+      </header>
+      <RecordFilters value={list.filters} units={list.units} master={list.master}
+        showQueue onChange={list.updateFilters} pager={list.pager} />
+      {error && <p className="error" role="alert">{error}</p>}
       {result && (
-        <div className="notice">
-          {result.approved.length} disetujui.
-          {result.skipped.length > 0 && (
-            <>
-              {' '}
-              {result.skipped.length} dilewati:
-              <ul className="small">
-                {result.skipped.map((s) => (
-                  <li key={s.id}>
-                    {rows.find((r) => r.id === s.id)?.judul ?? s.id.slice(0, 8)} — {BULK_REASON[s.reason] ?? s.reason}
-                  </li>
-                ))}
-              </ul>
-            </>
+        <div className="notice" role="status">
+          {result.approved.length} disetujui. {result.skipped.length} dilewati.
+          {!!result.skipped.length && (
+            <ul className="small">
+              {result.skipped.map((item) => <li key={item.id}>{result.titles[item.id]} ({BULK_REASON[item.reason] ?? item.reason})</li>)}
+            </ul>
           )}
         </div>
       )}
-      <div className="table-toolbar">
-        <button onClick={bulk} disabled={busy || selected.size === 0 || selected.size > 100}>
-          Setujui terpilih ({selected.size})
-        </button>
-        <button
-          className="secondary"
-          onClick={() => setSelected(new Set(rows.filter(quick).map((r) => r.id).slice(0, 100)))}
-          disabled={rows.length === 0}
-        >
-          Pilih yang layak cepat
-        </button>
-      </div>
-      <div className="card table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <input
-                  type="checkbox"
-                  aria-label="Pilih semua"
-                  checked={rows.length > 0 && selected.size === rows.length}
-                  onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())}
-                />
-              </th>
-              <th>Judul</th>
-              <th>Jenis</th>
-              <th>Dosen</th>
-              <th>Unit</th>
-              <th>Menunggu</th>
-              <th>Keyakinan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="muted">
-                  Antrean kosong.
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggle(r.id)} aria-label="Pilih" />
-                  </td>
-                  <td>
-                    <Link to={`/haki/dokumen/${r.id}`}>{r.judul || '(tanpa judul)'}</Link>
-                    {quick(r) && <span className="badge badge-ok small-badge">layak cepat</span>}
-                  </td>
-                  <td>{r.jenis ? JENIS_LABEL[r.jenis] : '-'}</td>
-                  <td>{r.owner_nama}</td>
-                  <td>{r.unit_nama ?? '-'}</td>
-                  <td>{r.submitted_at ? `${daysBetween(r.submitted_at)} hari` : '-'}</td>
-                  <td>{r.min_confidence ? `${Math.round(r.min_confidence * 100)}%` : 'tanpa skor AI'}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="pagination">
-        <span>{total} dokumen menunggu</span>
-        <div className="pagination-buttons">
-          <button className="secondary" disabled={page <= 1} onClick={() => setSp({ ...Object.fromEntries(sp), page: String(page - 1) })}>
-            ‹
-          </button>
-          <span className="page-info">
-            {page} / {pages}
-          </span>
-          <button className="secondary" disabled={page >= pages} onClick={() => setSp({ ...Object.fromEntries(sp), page: String(page + 1) })}>
-            ›
+      <AsyncState loading={list.loading} error={list.error} onRetry={list.retry} empty={!rows.length ? 'Tidak ada pengajuan yang cocok.' : undefined} />
+      <div id="bulk-selection" hidden={!selecting || !showRows}>
+        <div className="card selection-toolbar" aria-label="Pilihan dokumen pada halaman ini">
+          <label className="check list-checkbox">
+            <input type="checkbox" disabled={busy} checked={rows.length > 0 && selected.size === rows.length}
+              onChange={(event) => setSelected(event.target.checked ? new Set(rows.map((row) => row.id)) : new Set())} />
+            Pilih semua di halaman ini
+          </label>
+          <button type="button" className="secondary" disabled={busy} onClick={() => setSelected(new Set(rows.filter(quick).map((row) => row.id)))}><IconLabel icon={ListChecks}>Pilih yang layak cepat</IconLabel></button>
+          <button type="button" onClick={() => setConfirming(true)} disabled={busy || selected.size === 0}>
+            <IconLabel icon={Check}>{busy ? 'Menyetujui…' : `Setujui terpilih (${selected.size})`}</IconLabel>
           </button>
         </div>
       </div>
+      <ResponsiveList
+          rows={rows}
+          columns={columns}
+          caption="Antrean validasi"
+          list={list.pager} total={list.total} pending={list.loading} failed={!!list.error} order={list.order}
+          select={selecting ? (row) => (
+            <label className="list-checkbox">
+              <input type="checkbox" aria-label={'Pilih ' + (row.judul || 'dokumen tanpa judul')}
+                disabled={busy} checked={selected.has(row.id)} onChange={(event) => toggle(row.id, event.target.checked)} />
+            </label>
+          ) : undefined}
+      />
+      {confirming && (
+        <Dialog title="Setujui dokumen terpilih" onClose={() => setConfirming(false)}>
+          <p>{selected.size} dokumen dipilih. Server hanya menyetujui dokumen yang memenuhi syarat.</p>
+          <div className="form-actions wrap">
+            <button type="button" className="secondary" data-initial-focus onClick={() => setConfirming(false)}>Batal</button>
+            <button type="button" onClick={() => void bulk()}><IconLabel icon={Check}>Setujui dokumen</IconLabel></button>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

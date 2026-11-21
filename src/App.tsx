@@ -1,47 +1,83 @@
-import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider, useAuth } from './auth'
-import Layout from './components/Layout'
-import { menuFor } from './menu'
-import LoginPage from './pages/LoginPage'
-import './App.css'
+import { lazy, Suspense } from 'react';
+import { createHashRouter, Navigate, Outlet, RouterProvider, useRouteError } from 'react-router-dom';
+import { AuthProvider, useAuth } from './auth';
+import AsyncState from './components/AsyncState';
+import DraftGuard from './components/DraftGuard';
+import Layout from './components/Layout';
+import { menu, type MenuItem } from './menu';
+import { ThemeProvider } from './theme';
+import './App.css';
+import './shell.css';
+
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+
+function SignInRoute() {
+  const { session, loading } = useAuth();
+  if (loading) return <AsyncState loading />;
+  if (session) return <Navigate replace to="/beranda" />;
+  return <Suspense fallback={<AsyncState loading />}><LoginPage /></Suspense>;
+}
 
 function AppRoutes() {
-  const { session, profile, loading, signOut } = useAuth()
+  const { session, profile, loading, signOut, refreshProfile, profileError } = useAuth();
 
-  if (loading) return <p className="center">Memuat...</p>
-  if (!session) return <LoginPage />
-  if (!profile)
-    return (
-      <div className="center">
-        <p>Profil akun tidak ditemukan. Pastikan supabase/auth.sql sudah dijalankan.</p>
-        <button onClick={signOut}>Keluar</button>
-      </div>
-    )
+  if (loading) return <div className="center" role="status">Memuat SISIDOS…</div>;
+  if (!session) return <Suspense fallback={<AsyncState loading />}><LoginPage /></Suspense>;
+  if (!profile) return (
+    <main className="center">
+      <AsyncState error={profileError || 'Profil akun belum tersedia. Hubungi administrator.'} onRetry={() => void refreshProfile()} />
+      <button className="secondary" onClick={() => void signOut()}>Keluar</button>
+    </main>
+  );
 
-  // hanya halaman yang boleh dibuka oleh role ini yang didaftarkan
-  const items = menuFor(profile.role).flatMap((group) => group.items)
-
-  return (
-    <Layout>
-      <Routes>
-        {items.map((item) => (
-          <Route key={item.path} path={item.path} element={item.element} />
-        ))}
-        <Route path="*" element={<Navigate to={items[0].path} replace />} />
-      </Routes>
-    </Layout>
-  )
+  return <DraftGuard><Layout><Outlet /></Layout></DraftGuard>;
 }
 
-// HashRouter dipakai agar refresh halaman tidak 404 di GitHub Pages / Vercel
-function App() {
+function RouteScreen({ item }: { item: MenuItem }) {
+  const { profile } = useAuth();
+  if (!profile || !item.roles.includes(profile.role)) return <Navigate replace to="/beranda" />;
+  return <Suspense fallback={<AsyncState loading />}>{item.element}</Suspense>;
+}
+
+function RouteError() {
+  const error = useRouteError();
+  console.error(error);
   return (
-    <HashRouter>
+    <AsyncState
+      error="Halaman gagal dimuat."
+      onRetry={() => window.location.reload()}
+    />
+  );
+}
+
+// Hash history mempertahankan permalink saat aplikasi disajikan dari hosting statis.
+const router = createHashRouter([{
+  errorElement: <RouteError />,
+  children: [
+    { path: '/', element: <Suspense fallback={<AsyncState loading />}><LandingPage /></Suspense> },
+    { path: '/masuk', element: <SignInRoute /> },
+    {
+      element: <AppRoutes />,
+      children: [
+        ...menu.flatMap((group) => group.items.map((item) => ({
+          path: item.path,
+          element: <RouteScreen item={item} />,
+          handle: { title: item.label, section: group.title, icon: item.icon },
+          errorElement: <RouteError />,
+        }))),
+        { path: '*', element: <Navigate replace to="/beranda" /> },
+      ],
+    },
+  ],
+}]);
+
+export default function App() {
+  return (
+    <ThemeProvider>
       <AuthProvider>
-        <AppRoutes />
+        <RouterProvider router={router} />
       </AuthProvider>
-    </HashRouter>
-  )
+    </ThemeProvider>
+  );
 }
-
-export default App
