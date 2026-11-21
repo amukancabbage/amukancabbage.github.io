@@ -1,32 +1,34 @@
-import type { ReactNode } from 'react';
-import ArtikelMahasiswaPage from './pages/ArtikelMahasiswaPage';
-import BerandaPage from './pages/BerandaPage';
-import DosenPage from './pages/DosenPage';
-import KategoriPenelitianPage from './pages/KategoriPenelitianPage';
-import KategoriPengabdianPage from './pages/KategoriPengabdianPage';
-import PenelitianPage from './pages/PenelitianPage';
-import PengabdianPage from './pages/PengabdianPage';
-import PenggunaPage from './pages/PenggunaPage';
-import ProdiPage from './pages/ProdiPage';
-import SubkategoriPenelitianPage from './pages/SubkategoriPenelitianPage';
-import SubkategoriPengabdianPage from './pages/SubkategoriPengabdianPage';
-import UnitPage from './pages/UnitPage';
-import HakiAiPage from './pages/haki/admin/HakiAiPage';
-import HakiAuditPage from './pages/haki/admin/HakiAuditPage';
-import HakiMasterPage from './pages/haki/admin/HakiMasterPage';
-import HakiArchivePage from './pages/haki/HakiArchivePage';
-import HakiBerandaPage from './pages/haki/HakiBerandaPage';
-import HakiConfirmPage from './pages/haki/HakiConfirmPage';
-import HakiDashboardPage from './pages/haki/HakiDashboardPage';
-import HakiHelpPage from './pages/haki/HakiHelpPage';
-import HakiMinePage from './pages/haki/HakiMinePage';
-import HakiNotificationsPage from './pages/haki/HakiNotificationsPage';
-import HakiPortfolioPage from './pages/haki/HakiPortfolioPage';
-import HakiProfilePage from './pages/haki/HakiProfilePage';
-import HakiQueuePage from './pages/haki/HakiQueuePage';
-import HakiRecordPage from './pages/haki/HakiRecordPage';
-import HakiUploadPage from './pages/haki/HakiUploadPage';
+import { lazy, type ReactNode } from 'react';
 import type { Role } from './types';
+
+const RoleHomePage = lazy(() => import('./pages/RoleHomePage'));
+const ArtikelMahasiswaPage = lazy(() => import('./pages/ArtikelMahasiswaPage'));
+const BerandaPage = lazy(() => import('./pages/BerandaPage'));
+const DosenPage = lazy(() => import('./pages/DosenPage'));
+const KategoriPenelitianPage = lazy(() => import('./pages/KategoriPenelitianPage'));
+const KategoriPengabdianPage = lazy(() => import('./pages/KategoriPengabdianPage'));
+const PenelitianPage = lazy(() => import('./pages/PenelitianPage'));
+const PengabdianPage = lazy(() => import('./pages/PengabdianPage'));
+const PenggunaPage = lazy(() => import('./pages/PenggunaPage'));
+const ProdiPage = lazy(() => import('./pages/ProdiPage'));
+const SubkategoriPenelitianPage = lazy(() => import('./pages/SubkategoriPenelitianPage'));
+const SubkategoriPengabdianPage = lazy(() => import('./pages/SubkategoriPengabdianPage'));
+const UnitPage = lazy(() => import('./pages/UnitPage'));
+const HakiAiPage = lazy(() => import('./pages/haki/admin/HakiAiPage'));
+const HakiAuditPage = lazy(() => import('./pages/haki/admin/HakiAuditPage'));
+const HakiMasterPage = lazy(() => import('./pages/haki/admin/HakiMasterPage'));
+const HakiArchivePage = lazy(() => import('./pages/haki/HakiArchivePage'));
+const HakiBerandaPage = lazy(() => import('./pages/haki/HakiBerandaPage'));
+const HakiConfirmPage = lazy(() => import('./pages/haki/HakiConfirmPage'));
+const HakiDashboardPage = lazy(() => import('./pages/haki/HakiDashboardPage'));
+const HakiHelpPage = lazy(() => import('./pages/haki/HakiHelpPage'));
+const HakiMinePage = lazy(() => import('./pages/haki/HakiMinePage'));
+const HakiNotificationsPage = lazy(() => import('./pages/haki/HakiNotificationsPage'));
+const HakiPortfolioPage = lazy(() => import('./pages/haki/HakiPortfolioPage'));
+const HakiProfilePage = lazy(() => import('./pages/haki/HakiProfilePage'));
+const HakiQueuePage = lazy(() => import('./pages/haki/HakiQueuePage'));
+const HakiRecordPage = lazy(() => import('./pages/haki/HakiRecordPage'));
+const HakiUploadPage = lazy(() => import('./pages/haki/HakiUploadPage'));
 
 // `hidden`: rute terdaftar tetapi tidak tampil di sidebar (mis. detail dokumen)
 export type MenuItem = { path: string; label: string; element: ReactNode; roles: Role[]; hidden?: boolean };
@@ -43,7 +45,10 @@ const validator: Role[] = ['validator'];
 export const menu: MenuGroup[] = [
   {
     title: 'Utama',
-    items: [{ path: '/beranda', label: 'Beranda', element: <BerandaPage />, roles: semua }],
+    items: [
+      { path: '/beranda', label: 'Beranda', element: <RoleHomePage />, roles: semua },
+      { path: '/rekap-akademik', label: 'Rekap Akademik', element: <BerandaPage />, roles: semua },
+    ],
   },
   {
     title: 'Penelitian',
@@ -68,9 +73,9 @@ export const menu: MenuGroup[] = [
     ],
   },
   {
-    title: 'HAKI',
+    title: 'Kekayaan Intelektual',
     items: [
-      { path: '/haki', label: 'Beranda HAKI', element: <HakiBerandaPage />, roles: pengunggah },
+      { path: '/haki', label: 'Ringkasan HKI', element: <HakiBerandaPage />, roles: pengunggah },
       { path: '/haki/unggah', label: 'Unggah Sertifikat', element: <HakiUploadPage />, roles: pengunggah },
       { path: '/haki/saya', label: 'HKI Saya', element: <HakiMinePage />, roles: pengunggah },
       { path: '/haki/konfirmasi', label: 'Konfirmasi Pencipta', element: <HakiConfirmPage />, roles: dosen },
@@ -90,7 +95,7 @@ export const menu: MenuGroup[] = [
       { path: '/haki/portofolio', label: 'Portofolio', element: <HakiPortfolioPage />, roles: dosen },
       { path: '/haki/profil', label: 'Alias Nama', element: <HakiProfilePage />, roles: dosen },
       { path: '/haki/notifikasi', label: 'Notifikasi', element: <HakiNotificationsPage />, roles: semua },
-      { path: '/haki/bantuan', label: 'Bantuan HAKI', element: <HakiHelpPage />, roles: semua },
+      { path: '/haki/bantuan', label: 'Bantuan HKI', element: <HakiHelpPage />, roles: semua },
       { path: '/haki/dokumen/:id', label: 'Dokumen HKI', element: <HakiRecordPage />, roles: semua, hidden: true },
     ],
   },
@@ -100,14 +105,14 @@ export const menu: MenuGroup[] = [
       { path: '/dosen', label: 'Dosen', element: <DosenPage />, roles: admin },
       { path: '/prodi', label: 'Prodi', element: <ProdiPage />, roles: admin },
       { path: '/unit', label: 'Unit', element: <UnitPage />, roles: admin },
-      { path: '/haki/admin/master', label: 'Master HAKI', element: <HakiMasterPage />, roles: ['admin', 'validator'] },
+      { path: '/haki/admin/master', label: 'Master HKI', element: <HakiMasterPage />, roles: ['admin', 'validator'] },
     ],
   },
   {
     title: 'Pengaturan',
     items: [
       { path: '/pengguna', label: 'Pengguna', element: <PenggunaPage />, roles: admin },
-      { path: '/haki/admin/ai', label: 'Konfigurasi AI HAKI', element: <HakiAiPage />, roles: admin },
+      { path: '/haki/admin/ai', label: 'Konfigurasi AI', element: <HakiAiPage />, roles: admin },
       { path: '/haki/admin/audit', label: 'Log Audit', element: <HakiAuditPage />, roles: admin },
     ],
   },

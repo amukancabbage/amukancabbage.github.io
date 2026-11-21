@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { readPage } from '../lib/pagination';
 import { supabase } from '../lib/supabase';
+import AsyncState from './AsyncState';
+import Dialog from './Dialog';
+import { useDraftGuard, useUnsavedDraft } from './DraftGuard';
 
 export type Option = { value: number | string; label: string };
 export type RowValues = Record<string, string>;
@@ -111,20 +116,40 @@ export default function CrudPage<T extends { id: number | string }>({
   const [options, setOptions] = useState<Record<string, Option[]>>({});
   const [form, setForm] = useState(() => emptyForm(fields));
   const [editId, setEditId] = useState<T['id'] | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [optionsError, setOptionsError] = useState('');
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const initial = useRef(JSON.stringify(form));
+  const inFlight = useRef<Promise<boolean> | null>(null);
+  const { requestLeave } = useDraftGuard();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<Record<string, string>>({});
   // picker 'list': pilihan di combobox dan baris yang disorot di listbox, per field
   const [pick, setPick] = useState<Record<string, string>>({});
   const [highlight, setHighlight] = useState<Record<string, string[]>>({});
-  const [page, setPage] = useState(1);
+  const [params, setParams] = useSearchParams();
+  const page = readPage(params);
+  const appliedKeyword = params.get('q') ?? '';
   const [total, setTotal] = useState(0);
-  const [keyword, setKeyword] = useState('');
-  const [appliedKeyword, setAppliedKeyword] = useState('');
+  const [keyword, setKeyword] = useState(appliedKeyword);
+  const [saved, setSaved] = useState('');
   // nomor permintaan terakhir; jawaban dari permintaan lama diabaikan
   const requestId = useRef(0);
 
   const formFields = fields.filter((f) => !f.hideInForm);
+
+  function setPage(value: number) {
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value > 1) next.set('page', String(value));
+      else next.delete('page');
+      return next;
+    });
+  }
 
   async function loadRows() {
     const current = ++requestId.current;
@@ -159,17 +184,26 @@ export default function CrudPage<T extends { id: number | string }>({
   }
 
   async function loadOptions() {
-    const entries = await Promise.all(
+    setOptionsLoading(true);
+    setOptionsError('');
+    try {
+      const entries = await Promise.all(
       formFields
         .filter((f) => f.source)
         .map(async (f) => {
           const s = f.source!;
-          const { data } = await supabase.from(s.table).select(s.select).order(s.order);
+          const { data, error } = await supabase.from(s.table).select(s.select).order(s.order);
+          if (error) throw error;
           const opts = (data ?? []).map((row: any) => ({ value: row.id, label: s.label(row) }));
           return [f.name, opts] as const;
         }),
     );
-    setOptions(Object.fromEntries(entries));
+      setOptions(Object.fromEntries(entries));
+    } catch {
+      setOptionsError('Pilihan formulir gagal dimuat.');
+    } finally {
+      setOptionsLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -177,17 +211,26 @@ export default function CrudPage<T extends { id: number | string }>({
   }, [page, appliedKeyword]);
 
   // pencarian dijalankan 400 ms setelah berhenti mengetik, dimulai dari halaman 1
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAppliedKeyword(keyword.trim());
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [keyword]);
+  useEffect(() => { setKeyword(appliedKeyword); }, [appliedKeyword]);
 
   useEffect(() => {
-    loadOptions();
-  }, []);
+    const value = keyword.trim();
+    if (value === appliedKeyword) return;
+    const timer = setTimeout(() => {
+      setParams((current) => {
+        const next = new URLSearchParams(current);
+        if (value) next.set('q', value);
+        else next.delete('q');
+        next.delete('page');
+        return next;
+      }, { replace: true });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [keyword, appliedKeyword, setParams]);
+
+  useEffect(() => {
+    if (showForm) void loadOptions();
+  }, [showForm]);
 
   // baris yang semua isiannya kosong tidak disimpan
   function toRows(f: Field<T>, rows: RowValues[]) {
@@ -208,10 +251,31 @@ export default function CrudPage<T extends { id: number | string }>({
 
   const isShown = (f: Field<T>) => !f.showIf || f.showIf(form);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  function fail(message: string) {
+    setFormError(message);
+    return false;
+  }
+
+  function save() {
+    if (inFlight.current) return inFlight.current;
+    if (optionsLoading || optionsError) return Promise.resolve(false);
+    if (!formRef.current?.reportValidity()) return Promise.resolve(fail('Periksa isian wajib dan format nilai.'));
+    setSaving(true);
+    setFormError('');
+    inFlight.current = saveForm()
+      .catch(() => fail('Penyimpanan gagal. Periksa koneksi dan coba lagi.'))
+      .finally(() => { inFlight.current = null; setSaving(false); });
+    return inFlight.current;
+  }
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    void save();
+  }
+
+  async function saveForm() {
     const invalid = validate?.(form);
-    if (invalid) return setError(invalid);
+    if (invalid) return fail(invalid);
     const payload: Record<string, any> = {
       ...Object.fromEntries(
         formFields
@@ -231,11 +295,13 @@ export default function CrudPage<T extends { id: number | string }>({
     let id = editId;
     if (editId != null) {
       const { error } = await supabase.from(table).update(payload).eq('id', editId);
-      if (error) return setError(errorMessage(error));
+      if (error) return fail(errorMessage(error));
     } else {
       const { data, error } = await supabase.from(table).insert(payload).select('id').single();
-      if (error) return setError(errorMessage(error));
+      if (error) return fail(errorMessage(error));
       id = data.id;
+      // Jika relasi gagal, percobaan berikutnya melanjutkan rekaman yang sama.
+      setEditId(id);
     }
 
     // simpan relasi banyak-ke-banyak: hapus yang tidak dipilih lagi, tambah yang baru dipilih.
@@ -246,7 +312,7 @@ export default function CrudPage<T extends { id: number | string }>({
       const excluded = j.exclude ? form[j.exclude] : undefined;
       const values = (form[f.name] as string[]).filter((v) => v !== excluded);
       const existing = await supabase.from(j.table).select(j.valueKey).eq(j.foreignKey, id);
-      if (existing.error) return setError(errorMessage(existing.error));
+      if (existing.error) return fail(errorMessage(existing.error));
       const old = (existing.data as any[]).map((r) => String(r[j.valueKey]));
 
       const removed = old.filter((v) => !values.includes(v));
@@ -256,25 +322,36 @@ export default function CrudPage<T extends { id: number | string }>({
           .delete()
           .eq(j.foreignKey, id)
           .in(j.valueKey, removed.map((v) => toValue(f, v)));
-        if (del.error) return setError(errorMessage(del.error));
+        if (del.error) return fail(errorMessage(del.error));
       }
       const added = values.filter((v) => !old.includes(v));
       if (added.length > 0) {
         const ins = await supabase
           .from(j.table)
           .insert(added.map((v) => ({ [j.foreignKey]: id, [j.valueKey]: toValue(f, v) })));
-        if (ins.error) return setError(errorMessage(ins.error));
+        if (ins.error) return fail(errorMessage(ins.error));
       }
     }
 
-    setError(null);
+    setSaved('Data tersimpan.');
     resetForm();
-    loadRows();
+    void loadRows();
+    return true;
+  }
+
+  function openForm(values: FormValues, id: T['id'] | null) {
+    setForm(values);
+    initial.current = JSON.stringify(values);
+    setEditId(id);
+    setFormError('');
+    setPick({});
+    setHighlight({});
+    setSearch({});
+    setShowForm(true);
   }
 
   function handleEdit(row: T) {
-    setEditId(row.id);
-    setForm(
+    openForm(
       Object.fromEntries(
         formFields.map((f) => [
           f.name,
@@ -287,8 +364,8 @@ export default function CrudPage<T extends { id: number | string }>({
               : (f.getValue?.(row) ?? String(row[f.name] ?? '')),
         ]),
       ),
+      row.id,
     );
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function handleDelete(id: T['id']) {
@@ -299,9 +376,17 @@ export default function CrudPage<T extends { id: number | string }>({
   }
 
   function resetForm() {
+    setShowForm(false);
     setEditId(null);
-    setForm(emptyForm(fields));
+    setFormError('');
   }
+
+  useUnsavedDraft({
+    dirty: showForm && JSON.stringify(form) !== initial.current,
+    saving,
+    save,
+    discard: resetForm,
+  });
 
   function renderInput(f: Field<T>) {
     if (f.type === 'rows') {
@@ -422,7 +507,8 @@ export default function CrudPage<T extends { id: number | string }>({
         <div className="checklist-wrap">
           <input
             type="search"
-            placeholder={`Cari ${f.label.toLowerCase()}... (${selected.length} dipilih)`}
+            aria-label={`Cari ${f.label.toLowerCase()}`}
+            placeholder={`Cari ${f.label.toLowerCase()}…`}
             value={search[f.name] ?? ''}
             onChange={(e) => setSearch({ ...search, [f.name]: e.target.value })}
           />
@@ -476,119 +562,113 @@ export default function CrudPage<T extends { id: number | string }>({
   }
 
   const columns = fields.filter((f) => !f.hideInTable);
-  const showForm = canCreate || editId != null;
+  const primary = columns.find((f) => f.name.startsWith('judul')) ?? columns[0];
   const showActions = rows.some((r) => canEdit(r) || canDelete(r));
-  const colSpan = columns.length + (showActions ? 2 : 1);
+  const cell = (field: Field<T>, row: T) =>
+    field.render ? field.render(row) : String(row[field.name] ?? '–');
+
+  function actions(row: T) {
+    return (
+      <>
+        {canEdit(row) && <button type="button" className="secondary" onClick={() => handleEdit(row)}>Ubah</button>}
+        {canDelete(row) && <button type="button" className="danger" onClick={() => void handleDelete(row.id)}>Hapus</button>}
+      </>
+    );
+  }
 
   return (
     <section className="page">
-      <h1>{title}</h1>
-      {description && <p className="notice">{description}</p>}
-
-      {showForm && (
-        <form className="card form" onSubmit={handleSubmit}>
-          {formFields.filter(isShown).map((f) => {
-            const caption = (
-              <span>
-                {f.label}
-                {f.required && <em> *</em>}
-              </span>
-            );
-            // 'rows' berisi tombol, jadi tidak dibungkus <label> agar klik judul tidak menekan tombol
-            return f.type === 'rows' ? (
-              <div key={f.name} className={`field${f.wide ? ' wide' : ''}`}>
-                {caption}
-                {renderInput(f)}
-              </div>
-            ) : (
-              <label
-                key={f.name}
-                htmlFor={f.type === 'multiselect' ? undefined : f.name}
-                className={f.wide ? 'wide' : undefined}
-              >
-                {caption}
-                {renderInput(f)}
-              </label>
-            );
-          })}
-          <div className="form-actions">
-            <button type="submit">{editId != null ? 'Simpan Perubahan' : 'Tambah'}</button>
-            {editId != null && (
-              <button type="button" className="secondary" onClick={resetForm}>
-                Batal
-              </button>
-            )}
-          </div>
-        </form>
-      )}
-
-      {error && <p className="error">{error}</p>}
+      <header className="page-header">
+        <div>
+          <h1>{title}</h1>
+          {description && <p className="muted">{description}</p>}
+        </div>
+        {canCreate && (
+          <button type="button" onClick={() => openForm(emptyForm(fields), null)}>
+            Tambah {title.toLowerCase()}
+          </button>
+        )}
+      </header>
 
       {searchColumns && (
         <div className="table-toolbar">
-          <input
-            type="search"
-            className="search-input"
-            placeholder={searchPlaceholder}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-          />
-          {appliedKeyword && !loading && <span className="muted">{total} hasil</span>}
+          <label className="field search-field">
+            <span>Pencarian</span>
+            <input type="search" className="search-input" placeholder={searchPlaceholder} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+          </label>
+          {!loading && !error && <span className="muted small">{total} hasil</span>}
         </div>
       )}
+      {saved && <p className="notice" role="status">{saved}</p>}
+      <AsyncState
+        error={error}
+        loading={loading}
+        empty={!rows.length ? (appliedKeyword ? 'Tidak ada hasil untuk pencarian ini.' : 'Belum ada data.') : undefined}
+        onRetry={() => void loadRows()}
+      />
 
-      <div className="card table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>No</th>
-              {columns.map((f) => (
-                <th key={f.name}>{f.label}</th>
-              ))}
-              {showActions && <th>Aksi</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={colSpan}>Memuat...</td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={colSpan}>
-                  {appliedKeyword ? `Tidak ada hasil untuk "${appliedKeyword}"` : 'Belum ada data'}
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, i) => (
-                <tr key={row.id}>
-                  <td>{(pageSize ? (page - 1) * pageSize : 0) + i + 1}</td>
-                  {columns.map((f) => (
-                    <td key={f.name}>{f.render ? f.render(row) : String(row[f.name] ?? '-')}</td>
-                  ))}
-                  {showActions && (
-                    <td className="actions">
-                      {canEdit(row) && (
-                        <button className="secondary" onClick={() => handleEdit(row)}>
-                          Edit
-                        </button>
-                      )}
-                      {canDelete(row) && (
-                        <button className="danger" onClick={() => handleDelete(row.id)}>
-                          Hapus
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {!loading && rows.length > 0 && (
+        <>
+          <div className="card table-wrap desktop-list">
+            <table>
+              <thead><tr>
+                <th scope="col">No</th>
+                {columns.map((f) => <th key={f.name} scope="col">{f.label}</th>)}
+                {showActions && <th scope="col">Aksi</th>}
+              </tr></thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={row.id}>
+                    <td>{(pageSize ? (page - 1) * pageSize : 0) + index + 1}</td>
+                    {columns.map((f) => <td key={f.name}>{cell(f, row)}</td>)}
+                    {showActions && <td className="actions">{actions(row)}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-list">
+            {rows.map((row) => (
+              <article className="card row-summary" key={row.id}>
+                <h2>{primary ? cell(primary, row) : String(row.id)}</h2>
+                {columns.length > 1 && (
+                  <details>
+                    <summary>Rincian</summary>
+                    <dl>
+                      {columns.filter((f) => f !== primary).map((f) => (
+                        <div key={f.name}><dt>{f.label}</dt><dd>{cell(f, row)}</dd></div>
+                      ))}
+                    </dl>
+                  </details>
+                )}
+                {(canEdit(row) || canDelete(row)) && <div className="actions">{actions(row)}</div>}
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+      {pageSize && total > 0 && <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />}
 
-      {pageSize && total > 0 && (
-        <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />
+      {showForm && (
+        <Dialog title={(editId === null ? 'Tambah ' : 'Ubah ') + title.toLowerCase()} className="editor-dialog" onClose={() => requestLeave(resetForm)}>
+          <AsyncState loading={optionsLoading} error={optionsError} onRetry={() => void loadOptions()} />
+          <form ref={formRef} onSubmit={handleSubmit} aria-busy={saving}>
+            <fieldset className="form editor-form" disabled={saving}>
+              {formFields.filter(isShown).map((f) => {
+                const caption = <span>{f.label}{f.required && <em> *</em>}</span>;
+                const wide = f.wide ? ' wide' : '';
+                return f.type === 'rows' || f.type === 'multiselect'
+                  ? <div key={f.name} className={'field' + wide} role="group" aria-label={f.label}>{caption}{renderInput(f)}</div>
+                  : <label key={f.name} htmlFor={f.name} className={'field' + wide}>{caption}{renderInput(f)}</label>;
+              })}
+              {formError && <p className="error wide" role="alert">{formError}</p>}
+              <div className="form-actions wrap">
+                <button type="submit" disabled={saving || optionsLoading || !!optionsError}>{saving ? 'Menyimpan…' : 'Simpan'}</button>
+                <button type="button" className="secondary" onClick={() => requestLeave(resetForm)} disabled={saving}>Batal</button>
+              </div>
+            </fieldset>
+          </form>
+        </Dialog>
       )}
     </section>
   );

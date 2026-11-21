@@ -1,26 +1,26 @@
-import { useEffect, useState } from 'react';
 import { useProfile } from '../../auth';
-import { loadMaster, masterLabel } from '../../haki/api';
+import AsyncState from '../../components/AsyncState';
+import { loadMaster, masterLabel, toHakiError } from '../../haki/api';
 import { JENIS_LABEL, STATUS_HKI_LABEL } from '../../haki/constants';
 import { fmtDate } from '../../haki/format';
-import type { HkiListRow, MasterItem } from '../../haki/types';
+import type { HkiListRow } from '../../haki/types';
 import { supabase } from '../../lib/supabase';
+import { useRemoteData } from '../../lib/useRemoteData';
 
 // HKI terarsip milik sendiri / dikonfirmasi sebagai pencipta; siap cetak atau simpan PDF
 export default function HakiPortfolioPage() {
   const profile = useProfile();
-  const [rows, setRows] = useState<HkiListRow[] | null>(null);
-  const [master, setMaster] = useState<MasterItem[]>([]);
-
-  useEffect(() => {
-    loadMaster().then(setMaster);
-    supabase
-      .from('hki_record_list')
-      .select('*')
-      .eq('workflow_status', 'ARCHIVED')
-      .order('tgl_permohonan', { ascending: false, nullsFirst: false })
-      .then(({ data }) => setRows((data as HkiListRow[]) ?? []));
-  }, []);
+  const remote = useRemoteData(async () => {
+    const [master, result] = await Promise.all([
+      loadMaster(),
+      supabase.from('hki_record_list').select('*').eq('workflow_status', 'ARCHIVED')
+        .order('tgl_permohonan', { ascending: false, nullsFirst: false }),
+    ]);
+    if (result.error) throw toHakiError(result.error);
+    return { master, rows: (result.data as HkiListRow[]) ?? [] };
+  });
+  const rows = remote.data?.rows;
+  const master = remote.data?.master ?? [];
 
   return (
     <div className="page portfolio">
@@ -29,7 +29,7 @@ export default function HakiPortfolioPage() {
           <h1>Portofolio HKI</h1>
           <p className="muted">Dokumen terarsip yang Anda miliki atau Anda konfirmasi sebagai pencipta.</p>
         </div>
-        <button onClick={() => window.print()}>Cetak / simpan PDF</button>
+        <button onClick={() => window.print()} disabled={!rows?.length}>Cetak / simpan PDF</button>
       </div>
       <div className="print-only">
         <h1>Portofolio Hak Kekayaan Intelektual</h1>
@@ -37,11 +37,8 @@ export default function HakiPortfolioPage() {
           {profile.dosen?.nama} · dicetak {fmtDate(new Date().toISOString())}
         </p>
       </div>
-      {!rows ? (
-        <p>Memuat...</p>
-      ) : rows.length === 0 ? (
-        <p className="muted">Belum ada HKI terarsip.</p>
-      ) : (
+      <AsyncState loading={remote.loading} error={remote.error} onRetry={remote.retry} empty={rows?.length === 0 ? 'Belum ada HKI terarsip.' : undefined} />
+      {!!rows?.length && (
         <ol className="portfolio-list">
           {rows.map((r) => (
             <li key={r.id}>

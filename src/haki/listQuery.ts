@@ -62,13 +62,13 @@ export function buildQuery(f: ListFilters, opts: Options, count = true) {
   if (f.conf === 'rendah') query = query.lt('min_confidence', opts.low);
   if (f.conf === 'sedang') query = query.gte('min_confidence', opts.low).lt('min_confidence', opts.high);
   if (f.conf === 'tinggi') query = query.gte('min_confidence', opts.high);
-  if (f.umur) query = query.lte('submitted_at', new Date(Date.now() - Number(f.umur) * 86400000).toISOString());
+  if (['3', '7', '14'].includes(f.umur)) query = query.lte('submitted_at', new Date(Date.now() - Number(f.umur) * 86400000).toISOString());
   const q = f.q.replace(/[,()%*]/g, ' ').trim();
   if (q) {
     query = query.or(
       ['judul', 'no_permohonan', 'no_sertifikat', 'pencipta', 'owner_nama'].map((c) => `${c}.ilike.*${q}*`).join(','),
     );
   }
-  const sort = SORTS[f.sort] ?? SORTS[opts.defaultSort];
+  const sort = Object.hasOwn(SORTS, f.sort) ? SORTS[f.sort] : SORTS[opts.defaultSort];
   return query.order(sort.column, { ascending: sort.ascending, nullsFirst: false }).order('id');
 }

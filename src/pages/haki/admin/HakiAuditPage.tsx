@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import AsyncState from '../../../components/AsyncState';
+import ListPagination from '../../../components/ListPagination';
+import ResponsiveList, { type ListColumn } from '../../../components/ResponsiveList';
+import { toHakiError } from '../../../haki/api';
 import { fmtDateTime } from '../../../haki/format';
+import { readPage } from '../../../lib/pagination';
 import { supabase } from '../../../lib/supabase';
+import { useRemoteData } from '../../../lib/useRemoteData';
 
 type Log = {
   id: number;
@@ -11,99 +17,66 @@ type Log = {
   detail: Record<string, unknown> | null;
   created_at: string;
 };
-
 const PAGE = 50;
 
-// log append-only; admin melihat jejak aksi tanpa membuka isi dokumen
+// Log append-only. Admin melihat jejak aksi tanpa membuka isi dokumen.
 export default function HakiAuditPage() {
-  const [rows, setRows] = useState<Log[]>([]);
-  const [emails, setEmails] = useState<Record<string, string>>({});
-  const [aksi, setAksi] = useState('');
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-
-  useEffect(() => {
-    let query = supabase
-      .from('audit_logs')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
+  const [params, setParams] = useSearchParams();
+  const action = params.get('aksi') ?? '';
+  const page = readPage(params);
+  const remote = useRemoteData(async () => {
+    let query = supabase.from('audit_logs').select('*', { count: 'exact' })
+      .order('created_at', { ascending: false }).order('id', { ascending: false })
       .range((page - 1) * PAGE, page * PAGE - 1);
-    if (aksi) query = query.ilike('aksi', `${aksi}%`);
-    query.then(async ({ data, count }) => {
-      const list = (data as Log[]) ?? [];
-      setRows(list);
-      setTotal(count ?? 0);
-      const ids = [...new Set(list.map((l) => l.actor).filter(Boolean))] as string[];
-      if (ids.length) {
-        const { data: profiles } = await supabase.from('profiles').select('id, email').in('id', ids);
-        setEmails(Object.fromEntries((profiles ?? []).map((p) => [p.id, p.email ?? p.id])));
-      }
-    });
-  }, [aksi, page]);
+    if (action) query = query.ilike('aksi', action + '%');
+    const { data, count, error } = await query;
+    if (error) throw toHakiError(error);
+    const rows = (data as Log[]) ?? [];
+    const ids = [...new Set(rows.map((row) => row.actor).filter((id): id is string => !!id))];
+    const emails: Record<string, string> = {};
+    if (ids.length) {
+      const { data, error } = await supabase.from('profiles').select('id, email').in('id', ids);
+      if (error) throw toHakiError(error);
+      for (const row of data ?? []) emails[row.id] = row.email ?? row.id;
+    }
+    return { rows, total: count ?? 0, emails };
+  }, page + ':' + action);
 
-  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const columns: ListColumn<Log>[] = [
+    { label: 'Aksi', render: (row) => row.aksi },
+    { label: 'Waktu', render: (row) => fmtDateTime(row.created_at) },
+    { label: 'Pelaku', render: (row) => row.actor ? remote.data?.emails[row.actor] ?? row.actor.slice(0, 8) : 'Sistem' },
+    { label: 'Target', render: (row) => row.target_type ? row.target_type + ':' + (row.target_id ?? '').slice(0, 8) : '–' },
+    { label: 'Detail', render: (row) => row.detail ? (
+      <details><summary>Lihat detail</summary><code className="audit-payload mono small">{JSON.stringify(row.detail, null, 2)}</code></details>
+    ) : '–' },
+  ];
 
   return (
     <div className="page">
       <h1>Log Audit</h1>
-      <p className="muted">Jejak aksi tidak dapat diubah atau dihapus.</p>
+      <p className="muted">Jejak aktivitas dokumen dan pengelolaan sistem.</p>
       <div className="table-toolbar">
-        <select
-          value={aksi}
-          onChange={(e) => {
-            setAksi(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">Semua aksi</option>
-          <option value="record.">Dokumen</option>
-          <option value="persons.">Pencipta</option>
-          <option value="file.">Berkas</option>
-          <option value="export.">Ekspor</option>
-          <option value="privacy.">Privasi</option>
-          <option value="alias.">Alias</option>
-        </select>
+        <label className="field">
+          <span>Jenis aksi</span>
+          <select value={action} onChange={(event) => setParams(event.target.value ? { aksi: event.target.value } : {})}>
+            <option value="">Semua aksi</option>
+            <option value="record.">Dokumen</option>
+            <option value="persons.">Pencipta</option>
+            <option value="file.">Berkas</option>
+            <option value="export.">Ekspor</option>
+            <option value="privacy.">Privasi</option>
+            <option value="alias.">Alias</option>
+          </select>
+        </label>
       </div>
-      <div className="card table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Waktu</th>
-              <th>Pelaku</th>
-              <th>Aksi</th>
-              <th>Target</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((l) => (
-              <tr key={l.id}>
-                <td>{fmtDateTime(l.created_at)}</td>
-                <td>{l.actor ? (emails[l.actor] ?? l.actor.slice(0, 8)) : 'sistem'}</td>
-                <td>{l.aksi}</td>
-                <td className="mono small">
-                  {l.target_type ? `${l.target_type}:${(l.target_id ?? '').slice(0, 8)}` : '-'}
-                </td>
-                <td className="mono small">{l.detail ? JSON.stringify(l.detail) : ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="pagination">
-        <span>{total} entri</span>
-        <div className="pagination-buttons">
-          <button className="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            ‹
-          </button>
-          <span className="page-info">
-            {page} / {pages}
-          </span>
-          <button className="secondary" disabled={page >= pages} onClick={() => setPage(page + 1)}>
-            ›
-          </button>
-        </div>
-      </div>
+      <AsyncState loading={remote.loading} error={remote.error} onRetry={remote.retry} empty={remote.data?.rows.length === 0 ? 'Tidak ada entri untuk filter ini.' : undefined} />
+      {remote.data && (
+        <>
+          <ResponsiveList rows={remote.data.rows} columns={columns} caption="Log audit" />
+          <ListPagination total={remote.data.total} pageSize={PAGE} unit="entri" />
+        </>
+      )}
     </div>
   );
 }

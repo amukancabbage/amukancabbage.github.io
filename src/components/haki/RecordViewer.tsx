@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import AsyncState from '../AsyncState';
+import { useUnsavedDraft } from '../DraftGuard';
 import { downloadBlob, errorText, rpc } from '../../haki/api';
 import { fmtBytes } from '../../haki/format';
 import type { HkiFile } from '../../haki/types';
@@ -8,12 +10,15 @@ type Props = {
   recordId: string;
   files: HkiFile[];
   canUpload: boolean;
-  jumpPage: number | null;
+  jumpPage: { page: number } | null;
+  locked: boolean;
+  active: boolean;
+  onBusyChange: (busy: boolean) => void;
   onChanged: () => void;
 };
 
 // pratinjau berkas: gambar halaman (JPEG) untuk ponsel, PDF asli tetap bisa dibuka
-export default function RecordViewer({ recordId, files, canUpload, jumpPage, onChanged }: Props) {
+export default function RecordViewer({ recordId, files, canUpload, jumpPage, active, locked, onBusyChange, onChanged }: Props) {
   const [fileId, setFileId] = useState<string | null>(files[0]?.id ?? null);
   const [pageIdx, setPageIdx] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -21,6 +26,10 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+  const canChangeFile = canUpload && !locked && !busy;
+  useUnsavedDraft({ dirty: false, saving: busy });
+  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
   const logged = useRef(new Set<string>());
   const input = useRef<HTMLInputElement>(null);
 
@@ -33,13 +42,17 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
   }, [files, fileId]);
 
   useEffect(() => {
-    if (jumpPage == null || !file) return;
-    const idx = pageNumbers.indexOf(jumpPage);
-    if (idx >= 0) setPageIdx(idx);
+    if (!jumpPage) return;
+    const original = files.find((item) => item.jenis === 'utama');
+    if (!original) return;
+    const prepared = original.prep as { pages?: string[]; page_numbers?: number[] };
+    const numbers = prepared?.page_numbers ?? prepared?.pages?.map((_, index) => index + 1) ?? [];
+    setFileId(original.id);
+    setPageIdx(Math.max(0, numbers.indexOf(jumpPage.page)));
   }, [jumpPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!file) return;
+    if (!file || !active) return;
     let url: string | null = null;
     let alive = true;
     const path = pages.length > 0 ? pages[Math.min(pageIdx, pages.length - 1)] : file.mime.startsWith('image/') ? file.storage_path : null;
@@ -61,7 +74,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
       alive = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [file?.id, pageIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [file?.id, pageIdx, active, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openOriginal() {
     if (!file) return;
@@ -77,7 +90,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
 
   async function addAttachment(list: FileList | null) {
     const f = list?.[0];
-    if (!f) return;
+    if (!f || !canChangeFile) return;
     setBusy(true);
     setError(null);
     try {
@@ -93,13 +106,17 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
   }
 
   async function removeFile(f: HkiFile) {
-    if (!confirm(`Hapus lampiran "${f.nama_asli}"?`)) return;
+    if (!canChangeFile || !confirm(`Hapus lampiran "${f.nama_asli}"?`)) return;
+    setBusy(true);
     try {
       await rpc<string>('hki_delete_file', { p_file: f.id });
       setFileId(null);
+      setPageIdx(0);
       onChanged();
     } catch (e) {
       setError(errorText(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -109,7 +126,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
         <h2>Berkas</h2>
         {canUpload && (
           <>
-            <button className="secondary" disabled={busy} onClick={() => input.current?.click()}>
+            <button className="secondary" disabled={!canChangeFile} onClick={() => input.current?.click()}>
               {busy ? 'Mengunggah...' : files.length === 0 ? 'Unggah berkas utama' : 'Tambah lampiran'}
             </button>
             <input
@@ -125,7 +142,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
           </>
         )}
       </div>
-      {error && <p className="error pad">{error}</p>}
+      {error && <AsyncState error={error} onRetry={() => setReload((n) => n + 1)} />}
       {files.length === 0 ? (
         <p className="muted pad">Belum ada berkas.</p>
       ) : (
@@ -144,7 +161,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
                 </button>
                 <span className="muted small"> {fmtBytes(f.ukuran)}</span>
                 {canUpload && f.jenis === 'lampiran' && (
-                  <button className="link-button danger-text" onClick={() => removeFile(f)} aria-label="Hapus lampiran">
+                  <button className="link-button danger-text" onClick={() => removeFile(f)} disabled={!canChangeFile} aria-label="Hapus lampiran">
                     ×
                   </button>
                 )}
@@ -154,14 +171,14 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
           <div className="viewer-tools">
             {pages.length > 1 && (
               <>
-                <button className="secondary" disabled={pageIdx === 0} onClick={() => setPageIdx(pageIdx - 1)}>
+                <button className="secondary" aria-label="Halaman berkas sebelumnya" disabled={pageIdx === 0} onClick={() => setPageIdx(pageIdx - 1)}>
                   ‹
                 </button>
-                <span className="small">
+                <span className="small" role="status">
                   Hal. {pageNumbers[pageIdx]} ({pageIdx + 1}/{pages.length} dipratinjau
                   {file?.halaman ? ` dari ${file.halaman}` : ''})
                 </span>
-                <button className="secondary" disabled={pageIdx >= pages.length - 1} onClick={() => setPageIdx(pageIdx + 1)}>
+                <button className="secondary" aria-label="Halaman berkas berikutnya" disabled={pageIdx >= pages.length - 1} onClick={() => setPageIdx(pageIdx + 1)}>
                   ›
                 </button>
               </>
@@ -190,7 +207,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, onC
             ) : file && pages.length === 0 && !file.mime.startsWith('image/') ? (
               <p className="muted pad">Pratinjau halaman tidak tersedia. Gunakan “Buka asli”.</p>
             ) : (
-              <p className="muted pad">Memuat pratinjau...</p>
+              <p className="muted pad" role="status">{error ? 'Pratinjau gagal ditampilkan.' : 'Memuat pratinjau…'}</p>
             )}
           </div>
         </>

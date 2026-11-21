@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:ui": "playwright test",
     "test:db": "npx supabase test db",
     "test:fn": "npx -y deno test supabase/functions/_shared",
     "mock:ai": "node scripts/mock-openrouter.mjs",
@@ -23,6 +24,7 @@
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

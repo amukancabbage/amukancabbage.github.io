@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
-import { errorText, rpc } from '../../../haki/api';
+import { useEffect, useRef, useState } from 'react';
+import AsyncState from '../../../components/AsyncState';
+import { useUnsavedDraft } from '../../../components/DraftGuard';
+import { useRemoteData } from '../../../lib/useRemoteData';
+import { errorText, loadSettings, rpc, toHakiError } from '../../../haki/api';
 import { supabase } from '../../../lib/supabase';
 
 type Stats = {
@@ -25,55 +28,69 @@ const FIELDS: { key: string; label: string; kind: 'bool' | 'text' | 'number'; he
 
 export default function HakiAiPage() {
   const [values, setValues] = useState<Record<string, unknown>>({});
-  const [stats, setStats] = useState<Stats | null>(null);
+  const settings = useRemoteData(loadSettings);
+  const usage = useRemoteData(() => rpc<Stats>('hki_ai_stats'));
+  const baseline = useRef<Record<string, unknown>>({});
+  const stats = usage.data;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('hki_settings')
-      .select('key, value')
-      .then(({ data }) => setValues(Object.fromEntries((data ?? []).map((r) => [r.key, r.value]))));
-    rpc<Stats>('hki_ai_stats').then(setStats).catch((e) => setError(errorText(e)));
-  }, []);
+    if (!settings.data) return;
+    baseline.current = settings.data.raw;
+    setValues(settings.data.raw);
+  }, [settings.data]);
+  const dirty = JSON.stringify(values) !== JSON.stringify(baseline.current);
+  useUnsavedDraft({ dirty, saving: busy, save: busy ? undefined : save, discard: () => setValues(baseline.current) });
 
   async function save() {
-    setBusy(true);
+    if (busy || !settings.data) return false;
     setError(null);
     setMessage(null);
     const high = Number(values['ai.confidence_high']);
     const low = Number(values['ai.confidence_low']);
     if (!(low >= 0 && high <= 1 && low < high)) {
       setError('Ambang harus 0 ≤ rendah < tinggi ≤ 1.');
-      setBusy(false);
-      return;
+      return false;
     }
-    const rows = FIELDS.map((f) => ({
-      key: f.key,
-      value: f.kind === 'number' ? Number(values[f.key] ?? 0) : f.kind === 'bool' ? values[f.key] === true : String(values[f.key] ?? ''),
-    }));
-    const { error: err } = await supabase.from('hki_settings').upsert(rows);
-    if (err) setError(err.message);
-    else setMessage('Konfigurasi tersimpan.');
-    setBusy(false);
+    setBusy(true);
+    try {
+      const rows = FIELDS.map((field) => ({
+        key: field.key,
+        value: field.kind === 'number' ? Number(values[field.key] ?? 0)
+          : field.kind === 'bool' ? values[field.key] === true : String(values[field.key] ?? ''),
+      }));
+      const { error } = await supabase.from('hki_settings').upsert(rows);
+      if (error) throw toHakiError(error);
+      baseline.current = values;
+      setMessage('Konfigurasi tersimpan.');
+      usage.retry();
+      return true;
+    } catch (e) {
+      setError(errorText(e));
+      return false;
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="page">
-      <h1>Konfigurasi AI HAKI</h1>
+      <h1>Konfigurasi AI</h1>
       <p className="muted">
         Kunci API OpenRouter disimpan sebagai secret Edge Function, tidak pernah di peramban. Admin hanya melihat
         statistik biaya, bukan isi dokumen.
       </p>
-      {message && <p className="notice">{message}</p>}
-      {error && <p className="error">{error}</p>}
-      <div className="card form">
+      {message && <p className="notice" role="status">{message}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      <AsyncState loading={settings.loading} error={settings.error} onRetry={settings.retry} />
+      {settings.data && <div className="card form">
         {FIELDS.map((f) => (
           <label key={f.key} className={f.kind === 'bool' ? 'wide check' : undefined}>
             {f.kind === 'bool' ? (
               <>
-                <input type="checkbox" checked={values[f.key] === true} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))} />
+                <input type="checkbox" disabled={busy} checked={values[f.key] === true} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.checked }))} />
                 {f.label}
               </>
             ) : (
@@ -82,6 +99,7 @@ export default function HakiAiPage() {
                 <input
                   type={f.kind === 'number' ? 'number' : 'text'}
                   step="any"
+                  disabled={busy}
                   value={String(values[f.key] ?? '')}
                   onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
                 />
@@ -91,12 +109,13 @@ export default function HakiAiPage() {
           </label>
         ))}
         <div className="form-actions">
-          <button onClick={save} disabled={busy}>
+          <button onClick={() => void save()} disabled={busy || !dirty}>
             Simpan
           </button>
         </div>
-      </div>
+      </div>}
 
+      <AsyncState loading={usage.loading} error={usage.error} onRetry={usage.retry} />
       {stats && (
         <>
           <h2 className="section-title">Bulan ini</h2>

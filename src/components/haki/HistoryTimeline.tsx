@@ -19,11 +19,7 @@ const LABEL: Record<string, string> = {
 
 export default function HistoryTimeline({ items }: { items: HistoryItem[] }) {
   return (
-    <div className="card">
-      <div className="card-head">
-        <h2>Riwayat</h2>
-      </div>
-      <ol className="timeline">
+    <ol className="timeline">
         {items.length === 0 && <li className="muted">Belum ada riwayat.</li>}
         {items.map((h, i) => (
           <li key={i}>
@@ -44,7 +40,6 @@ export default function HistoryTimeline({ items }: { items: HistoryItem[] }) {
             )}
           </li>
         ))}
-      </ol>
-    </div>
+    </ol>
   );
 }

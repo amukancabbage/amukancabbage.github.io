@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useState } from 'react';
+import { useUnsavedDraft } from '../DraftGuard';
 import { HakiError, errorText, rpc, runExtraction } from '../../haki/api';
 import { fieldLabel } from '../../haki/constants';
 import type { HkiRecord, Problem, RecordMeta } from '../../haki/types';
@@ -8,36 +9,55 @@ type Props = {
   meta: RecordMeta;
   reviewNotes: Record<string, string>;
   // dipanggil setelah aksi sukses; `decided` = validator baru memutuskan (buka dokumen berikutnya)
-  onDone: (opts?: { decided?: boolean; deleted?: boolean }) => void;
+  onDone: (opts?: Completion) => void;
+  blocked: boolean;
+  onBusyChange: (busy: boolean) => void;
 };
+
+type Completion = { decided?: boolean; deleted?: boolean; version?: number };
 
 type Mode = null | 'submit' | 'revision' | 'reject' | 'correction';
 
 export function isTyping(e: KeyboardEvent) {
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return true;
   const t = e.target as HTMLElement | null;
   return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 }
 
-export default function WorkflowActions({ record, meta, reviewNotes, onDone }: Props) {
+export default function WorkflowActions({ record, meta, reviewNotes, blocked, onBusyChange, onDone }: Props) {
   const [mode, setMode] = useState<Mode>(null);
   const [statement, setStatement] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [completion, setCompletion] = useState<Completion | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const { caps } = meta;
+  const disabled = busy || blocked;
+  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
+  useEffect(() => {
+    if (!completion) return;
+    setCompletion(null);
+    onDone(completion);
+  }, [completion, onDone]);
+  useUnsavedDraft({ dirty: statement || note.trim() !== '', saving: busy, discard: reset });
 
-  async function run(fn: () => Promise<unknown>, opts?: { decided?: boolean; deleted?: boolean }) {
+  function reset() {
+    setMode(null);
+    setNote('');
+    setStatement(false);
+  }
+
+  async function run(fn: () => Promise<unknown>, opts?: Completion) {
+    if (disabled) return;
     setBusy(true);
     setError(null);
     setProblems([]);
     try {
-      await fn();
-      setMode(null);
-      setNote('');
-      setStatement(false);
-      onDone(opts);
+      const result = await fn();
+      reset();
+      setCompletion({ ...opts, version: typeof result === 'number' ? result : undefined });
     } catch (e) {
       setError(errorText(e));
       if (e instanceof HakiError) setProblems(e.problems);
@@ -50,12 +70,13 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
 
   async function submit() {
     await run(async () => {
-      const r = await rpc<{ duplicates_total: number }>('hki_submit', {
+      const r = await rpc<{ duplicates_total: number; versi: number }>('hki_submit', {
         p_record: record.id,
         p_versi: record.versi,
         p_pernyataan: statement,
       });
       if (r.duplicates_total > 0) setInfo(`Terkirim. Ada ${r.duplicates_total} kemungkinan duplikat yang akan diperiksa validator.`);
+      return r.versi;
     });
   }
 
@@ -74,7 +95,8 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
   }
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if (!caps.review || mode !== null || busy || isTyping(e)) return;
+    if (!caps.review || mode !== null || disabled || isTyping(e)
+      || !(e.target instanceof HTMLElement && e.target.closest('[data-review-shortcuts]'))) return;
     if (e.key === 'a' && confirm('Setujui dan arsipkan dokumen ini?')) review('approve');
     if (e.key === 'r') setMode('revision');
   });
@@ -89,13 +111,14 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
   if (nothing && !info) return null;
 
   return (
-    <div className="card workflow">
+    <div className="card workflow" data-review-shortcuts>
       <div className="card-head">
         <h2>Tindakan</h2>
       </div>
       <div className="pad">
-        {info && <p className="notice">{info}</p>}
-        {error && <p className="error">{error}</p>}
+        {blocked && <p className="notice" role="status">Selesaikan perubahan metadata, pencipta, atau berkas sebelum melanjutkan.</p>}
+        {info && <p className="notice" role="status">{info}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         {problems.length > 0 && (
           <ul className="problems">
             {problems.map((p, i) => (
@@ -110,32 +133,32 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
         {mode === null && (
           <div className="form-actions wrap">
             {caps.submit && (
-              <button onClick={() => setMode('submit')} disabled={busy}>
+              <button onClick={() => setMode('submit')} disabled={disabled}>
                 Ajukan ke validator
               </button>
             )}
             {caps.review && (
               <>
-                <button onClick={() => review('approve')} disabled={busy} title="Pintasan: A">
+                <button onClick={() => review('approve')} disabled={disabled} title="Pintasan: A">
                   Setujui &amp; arsipkan
                 </button>
-                <button className="secondary" onClick={() => setMode('revision')} disabled={busy} title="Pintasan: R">
+                <button className="secondary" onClick={() => setMode('revision')} disabled={disabled} title="Pintasan: R">
                   Minta revisi
                 </button>
-                <button className="danger" onClick={() => setMode('reject')} disabled={busy}>
+                <button className="danger" onClick={() => setMode('reject')} disabled={disabled}>
                   Tolak
                 </button>
               </>
             )}
             {caps.correction && (
-              <button className="secondary" onClick={() => setMode('correction')} disabled={busy}>
+              <button className="secondary" onClick={() => setMode('correction')} disabled={disabled}>
                 Minta koreksi arsip
               </button>
             )}
             {caps.extract && (
               <button
                 className="secondary"
-                disabled={busy}
+                disabled={disabled}
                 onClick={() => {
                   const first = record.workflow_status === 'DRAFT';
                   if (
@@ -154,7 +177,7 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
             {caps.delete && (
               <button
                 className="danger"
-                disabled={busy}
+                disabled={disabled}
                 onClick={() => confirm('Hapus dokumen ini?') && run(() => rpc('hki_delete_record', { p_record: record.id }), { deleted: true })}
               >
                 Hapus dokumen
@@ -183,10 +206,10 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
               Saya menyatakan data dan dokumen ini benar serta dapat dipertanggungjawabkan.
             </label>
             <div className="form-actions">
-              <button onClick={submit} disabled={busy || !statement}>
+              <button onClick={submit} disabled={disabled || !statement || meta.problems.length > 0}>
                 Kirim pengajuan
               </button>
-              <button className="secondary" onClick={() => setMode(null)}>
+              <button className="secondary" onClick={reset} disabled={busy}>
                 Batal
               </button>
             </div>
@@ -207,24 +230,24 @@ export default function WorkflowActions({ record, meta, reviewNotes, onDone }: P
             )}
             <div className="form-actions">
               {mode === 'revision' && (
-                <button onClick={() => review('request_revision')} disabled={busy}>
+                <button onClick={() => review('request_revision')} disabled={disabled || (!note.trim() && !Object.keys(fieldNotes).length)}>
                   Kirim permintaan revisi
                 </button>
               )}
               {mode === 'reject' && (
-                <button className="danger" onClick={() => review('reject')} disabled={busy || !note.trim()}>
+                <button className="danger" onClick={() => review('reject')} disabled={disabled || !note.trim()}>
                   Tolak dokumen
                 </button>
               )}
               {mode === 'correction' && (
                 <button
                   onClick={() => run(() => rpc('hki_request_correction', { p_record: record.id, p_alasan: note }))}
-                  disabled={busy || note.trim().length < 3}
+                  disabled={disabled || note.trim().length < 3}
                 >
                   Kirim permintaan koreksi
                 </button>
               )}
-              <button className="secondary" onClick={() => setMode(null)}>
+              <button className="secondary" onClick={reset} disabled={busy}>
                 Batal
               </button>
             </div>

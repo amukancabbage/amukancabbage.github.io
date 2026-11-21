@@ -41,7 +41,7 @@ export default function PrivacyGate({ children }: { children: ReactNode }) {
         <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
         Saya memahami dan menyetujui pemrosesan data di atas.
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <button disabled={!checked || busy} onClick={accept}>
         {busy ? 'Menyimpan...' : 'Setuju dan lanjutkan'}
       </button>

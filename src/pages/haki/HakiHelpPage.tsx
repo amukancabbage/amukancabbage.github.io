@@ -8,7 +8,7 @@ const FAQ: [string, string][] = [
     'Hanya dosen pemilik dokumen. Operator dapat mengunggah atas nama dosen di unitnya dan melengkapi data, tetapi pengajuan tetap dilakukan dosen.',
   ],
   [
-    'Mengapa beberapa field berwarna kuning atau merah?',
+    'Mengapa beberapa isian perlu diperiksa?',
     'Keyakinan AI pada nilai itu rendah atau nilainya kosong. Periksa terhadap dokumen asli, lalu ubah atau centang “sudah saya periksa” sebelum mengajukan.',
   ],
   [
@@ -37,14 +37,15 @@ const FAQ: [string, string][] = [
   ],
   [
     'Pintasan keyboard validator?',
-    'Di layar dokumen dari antrean: N berikutnya, P sebelumnya, A setujui, R minta revisi, ? bantuan.',
+    'Saat fokus berada di navigasi antrean dokumen, tekan N untuk berikutnya, P untuk sebelumnya, atau ? untuk bantuan. Pada bagian Tindakan, tekan A untuk setujui atau R untuk minta revisi.',
   ],
 ];
 
 export default function HakiHelpPage() {
   return (
     <div className="page">
-      <h1>Bantuan HAKI</h1>
+      <h1>Bantuan HKI</h1>
+      <p className="muted">Panduan unggah, verifikasi, dan pengarsipan dokumen.</p>
       <div className="faq">
         {FAQ.map(([q, a]) => (
           <details key={q} className="card pad">

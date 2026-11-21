@@ -1,12 +1,16 @@
-import { useEffect, useEffectEvent, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import FieldForm from '../../components/haki/FieldForm';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useProfile } from '../../auth';
+import AsyncState from '../../components/AsyncState';
+import Tabs from '../../components/Tabs';
+import { useUnsavedDraft } from '../../components/DraftGuard';
+import FieldForm, { type FieldSaveResult } from '../../components/haki/FieldForm';
 import HistoryTimeline from '../../components/haki/HistoryTimeline';
 import PersonsEditor from '../../components/haki/PersonsEditor';
 import RecordViewer from '../../components/haki/RecordViewer';
 import StatusBadge from '../../components/haki/StatusBadge';
 import WorkflowActions, { isTyping } from '../../components/haki/WorkflowActions';
-import { HakiError, errorText, loadMaster, loadSettings, rpc, type HakiSettings } from '../../haki/api';
+import { HakiError, errorText, loadMaster, loadSettings, rpc, toHakiError, type HakiSettings } from '../../haki/api';
 import { BULK_REASON, JENIS_LABEL, aiErrorText } from '../../haki/constants';
 import { fmtDate } from '../../haki/format';
 import { neighbours } from '../../haki/queueContext';
@@ -21,6 +25,7 @@ import type {
   ReviewAction,
 } from '../../haki/types';
 import { supabase } from '../../lib/supabase';
+import { useMediaQuery } from '../../lib/useMediaQuery';
 
 type Data = {
   record: HkiRecord;
@@ -35,7 +40,8 @@ type Data = {
 };
 
 async function loadAll(id: string): Promise<Data | null> {
-  const { data: record } = await supabase.from('hki_records').select('*').eq('id', id).maybeSingle();
+  const { data: record, error } = await supabase.from('hki_records').select('*').eq('id', id).maybeSingle();
+  if (error) throw toHakiError(error);
   // tidak terlihat = tidak ada (404)
   if (!record) return null;
   const [files, persons, fv, meta, history, revisions, owner, unit] = await Promise.all([
@@ -48,6 +54,9 @@ async function loadAll(id: string): Promise<Data | null> {
     supabase.from('dosen').select('nama').eq('id', record.owner_dosen_id).maybeSingle(),
     record.unit_id ? supabase.from('units').select('nama').eq('id', record.unit_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
+  for (const result of [files, persons, fv, revisions, owner, unit]) {
+    if ('error' in result && result.error) throw toHakiError(result.error);
+  }
   const last = (revisions.data?.[0] as ReviewAction | undefined) ?? null;
   return {
     record: record as HkiRecord,
@@ -62,25 +71,51 @@ async function loadAll(id: string): Promise<Data | null> {
   };
 }
 
+const recordTabs = [{ key: 'metadata', label: 'Metadata' }, { key: 'files', label: 'Berkas' }] as const;
+
 export default function HakiRecordPage() {
   const { id = '' } = useParams();
+  return <RecordDetail key={id} id={id} />;
+}
+
+function RecordDetail({ id }: { id: string }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const profile = useProfile();
+  const from = (location.state as { from?: string } | null)?.from;
+  const fallback = profile.role === 'dosen' || profile.role === 'operator' ? '/haki/saya'
+    : profile.role === 'admin' ? '/beranda' : '/haki/arsip';
+  const fromList = ['/haki/saya', '/haki/arsip'].includes(from?.split('?')[0] ?? '');
+  const back = fromList && from ? from : fallback;
+  const split = useMediaQuery('(min-width: 1200px)');
+  const [tab, setTab] = useState<'metadata' | 'files'>('metadata');
+  const filePanel = useRef<HTMLElement>(null);
   const [data, setData] = useState<Data | null>(null);
   const [missing, setMissing] = useState(false);
   const [settings, setSettings] = useState<HakiSettings | null>(null);
   const [master, setMaster] = useState<MasterItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<string | null>(null);
-  const [jump, setJump] = useState<number | null>(null);
+  const [jump, setJump] = useState<{ page: number } | null>(null);
+  const [writtenVersion, setWrittenVersion] = useState(0);
+  const [metadataPending, setMetadataPending] = useState(false);
+  const [personsPending, setPersonsPending] = useState(false);
+  const [fileBusy, setFileBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [decision, setDecision] = useState<{ deleted?: boolean } | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [help, setHelp] = useState(false);
   const [reload, setReload] = useState(0);
-  const nav = neighbours(id);
+  const nav = profile.role === 'validator' && !fromList ? neighbours(id) : null;
 
   useEffect(() => {
-    loadSettings().then(setSettings);
-    loadMaster().then(setMaster);
-  }, []);
+    if (settings) return;
+    let alive = true;
+    void Promise.all([loadSettings(), loadMaster()])
+      .then(([settings, master]) => { if (alive) { setSettings(settings); setMaster(master); } })
+      .catch(() => { if (alive) setError('Pengaturan HKI gagal dimuat.'); });
+    return () => { alive = false; };
+  }, [settings, reload]);
 
   useEffect(() => {
     let alive = true;
@@ -101,10 +136,23 @@ export default function HakiRecordPage() {
     };
   }, [id, reload]);
 
+  useUnsavedDraft({
+    dirty: Object.values(reviewNotes).some((note) => note.trim()),
+    discard: () => setReviewNotes({}),
+  });
+
   useEffect(() => {
-    setReviewNotes({});
-    setConflict(null);
-  }, [id]);
+    if (!decision) return;
+    if (decision.deleted) navigate('/haki/saya');
+    else if (nav?.next) navigate('/haki/dokumen/' + nav.next);
+    else if (nav) navigate(nav.back);
+    else setReload((n) => n + 1);
+    setDecision(null);
+  }, [decision, navigate, nav]);
+
+  useEffect(() => {
+    if (jump) filePanel.current?.focus();
+  }, [jump]);
 
   // sedang dibaca AI: cek berkala; sapu stale menandai TIMEOUT
   useEffect(() => {
@@ -117,7 +165,7 @@ export default function HakiRecordPage() {
   }, [data]);
 
   const onKey = useEffectEvent((e: KeyboardEvent) => {
-    if (isTyping(e) || !nav) return;
+    if (isTyping(e) || !nav || !(e.target instanceof HTMLElement && e.target.closest('[data-record-shortcuts]'))) return;
     if (e.key === 'n' && nav.next) navigate(`/haki/dokumen/${nav.next}`);
     if (e.key === 'p' && nav.prev) navigate(`/haki/dokumen/${nav.prev}`);
     if (e.key === '?') setHelp((h) => !h);
@@ -129,38 +177,41 @@ export default function HakiRecordPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  async function saveFields(fields: Record<string, string>, confirmFields: string[]): Promise<boolean> {
-    if (!data) return false;
+  function afterWrite(version?: number) {
+    if (version != null) setWrittenVersion((current) => Math.max(current, version));
+    setReload((n) => n + 1);
+  }
+
+  async function saveFields(fields: Record<string, string>, confirmFields: string[], expected: number): Promise<FieldSaveResult> {
     try {
-      await rpc<number>('hki_update_fields', {
-        p_record: data.record.id,
-        p_versi: data.record.versi,
+      const version = await rpc<number>('hki_update_fields', {
+        p_record: id,
+        p_versi: expected,
         p_fields: fields,
         p_confirm: confirmFields,
       });
-      setReload((n) => n + 1);
-      return true;
+      afterWrite(version);
+      return { type: 'saved', version };
     } catch (e) {
-      if (e instanceof HakiError && e.code === 'VERSION_CONFLICT') setConflict(e.message);
-      else setError(errorText(e));
-      return false;
+      if (e instanceof HakiError && e.code === 'VERSION_CONFLICT') {
+        const { data: latest, error } = await supabase.from('hki_records').select('*').eq('id', id).maybeSingle();
+        if (!error && latest) {
+          afterWrite(latest.versi);
+          return { type: 'conflict', record: latest as HkiRecord };
+        }
+        return { type: 'failed', message: 'Versi terbaru gagal dimuat. Draf masih tersedia di halaman ini.' };
+      }
+      return { type: 'failed', message: errorText(e) };
     }
   }
 
-  function afterAction(opts?: { decided?: boolean; deleted?: boolean }) {
-    if (opts?.deleted) {
-      navigate('/haki/saya');
-      return;
+  function afterAction(opts?: { decided?: boolean; deleted?: boolean; version?: number }) {
+    if (opts?.deleted || opts?.decided) {
+      setReviewNotes({});
+      setDecision({ deleted: opts.deleted });
+    } else {
+      afterWrite(opts?.version);
     }
-    if (opts?.decided && nav?.next) {
-      navigate(`/haki/dokumen/${nav.next}`);
-      return;
-    }
-    if (opts?.decided && nav) {
-      navigate(nav.back);
-      return;
-    }
-    setReload((n) => n + 1);
   }
 
   if (missing) {
@@ -168,14 +219,15 @@ export default function HakiRecordPage() {
       <div className="page">
         <h1>Dokumen tidak ditemukan</h1>
         <p className="muted">Dokumen ini tidak ada atau Anda tidak berhak membukanya.</p>
-        <Link to="/haki">Kembali ke Beranda HAKI</Link>
+        <Link to={fallback}>Kembali ke daftar</Link>
       </div>
     );
   }
-  if (error && !data) return <p className="error">{error}</p>;
-  if (!data || !settings) return <p>Memuat...</p>;
+  if (error && (!data || !settings)) return <AsyncState error={error} onRetry={() => setReload((n) => n + 1)} />;
+  if (!data || !settings) return <AsyncState loading />;
 
-  const { record, meta } = data;
+  const { meta } = data;
+  const record = { ...data.record, versi: Math.max(data.record.versi, writtenVersion) };
   const editable = meta.caps.edit;
   const reviewing = meta.caps.review;
 
@@ -183,14 +235,14 @@ export default function HakiRecordPage() {
     <div className="page record-page">
       <div className="record-head">
         <div>
-          <div className="crumbs">
-            {nav ? <Link to={nav.back}>‹ Antrean</Link> : <Link to="/haki/saya">‹ HKI Saya</Link>}
+          <div className="crumbs" data-record-shortcuts>
+            {nav ? <Link to={nav.back}>‹ Antrean</Link> : <Link to={back}>‹ Kembali ke daftar</Link>}
             {nav && (
               <span className="queue-nav">
                 <button className="secondary" disabled={!nav.prev} onClick={() => navigate(`/haki/dokumen/${nav.prev}`)} title="Pintasan: P">
                   Sebelumnya
                 </button>
-                <span className="small">
+                <span className="small" aria-label="Posisi antrean">
                   {nav.index + 1} / {nav.total}
                 </span>
                 <button className="secondary" disabled={!nav.next} onClick={() => navigate(`/haki/dokumen/${nav.next}`)} title="Pintasan: N">
@@ -198,6 +250,7 @@ export default function HakiRecordPage() {
                 </button>
               </span>
             )}
+            {nav && <button type="button" className="link-button" onClick={() => setHelp((value) => !value)} aria-expanded={help}>Pintasan</button>}
           </div>
           <h1>{record.judul || '(tanpa judul)'}</h1>
           <p className="muted">
@@ -228,7 +281,7 @@ export default function HakiRecordPage() {
           </button>
         </div>
       )}
-      {error && <p className="error">{error}</p>}
+      {error && <AsyncState error={error} onRetry={() => setReload((n) => n + 1)} />}
       {record.workflow_status === 'EXTRACTING' && <div className="notice">AI sedang membaca dokumen. Halaman ini diperbarui otomatis.</div>}
       {record.workflow_status === 'EXTRACTION_FAILED' && (
         <div className="notice warn-box">
@@ -257,12 +310,26 @@ export default function HakiRecordPage() {
         <p className="muted small">Tidak layak setujui massal: {BULK_REASON[meta.bulk_ineligible] ?? meta.bulk_ineligible}.</p>
       )}
 
+      {!split && <Tabs id="record" label="Bagian dokumen" tabs={recordTabs} value={tab} onChange={setTab} />}
       <div className="record-grid">
-        <div className="record-main">
-          <WorkflowActions record={record} meta={meta} reviewNotes={reviewNotes} onDone={afterAction} />
+        <section
+          id="record-panel-metadata"
+          className="record-main"
+          role={split ? undefined : 'tabpanel'}
+          aria-labelledby={split ? undefined : 'record-tab-metadata'}
+          hidden={!split && tab !== 'metadata'}
+        >
+          <WorkflowActions
+            record={record}
+            meta={meta}
+            reviewNotes={reviewNotes}
+            blocked={metadataPending || personsPending || fileBusy}
+            onBusyChange={setActionBusy}
+            onDone={afterAction}
+          />
           <FieldForm
             key={record.id}
-            record={record}
+            record={data.record}
             fieldValues={data.fieldValues}
             master={master}
             settings={settings}
@@ -273,13 +340,17 @@ export default function HakiRecordPage() {
             reviewNotes={reviewing ? reviewNotes : null}
             onReviewNote={reviewing ? (f, v) => setReviewNotes((n) => ({ ...n, [f]: v })) : undefined}
             onSave={saveFields}
-            onJumpPage={setJump}
+            locked={personsPending || fileBusy || actionBusy}
+            onPendingChange={setMetadataPending}
+            onJumpPage={(page) => { setTab('files'); setJump({ page }); }}
           />
           <PersonsEditor
             record={record}
             persons={data.persons}
             editable={meta.caps.edit_persons}
-            onSaved={() => setReload((n) => n + 1)}
+            locked={metadataPending || fileBusy || actionBusy}
+            onPendingChange={setPersonsPending}
+            onSaved={afterWrite}
             onConflict={setConflict}
           />
           {meta.warnings.filter((w) => !w.field).length > 0 && (
@@ -294,17 +365,28 @@ export default function HakiRecordPage() {
               </ul>
             </div>
           )}
-          <HistoryTimeline items={data.history} />
-        </div>
-        <div className="record-side">
+          <details className="card history-disclosure" open><summary>Riwayat dokumen</summary><HistoryTimeline items={data.history} /></details>
+        </section>
+        <section
+          id="record-panel-files"
+          className="record-side"
+          ref={filePanel}
+          tabIndex={-1}
+          role={split ? undefined : 'tabpanel'}
+          aria-labelledby={split ? undefined : 'record-tab-files'}
+          hidden={!split && tab !== 'files'}
+        >
           <RecordViewer
             recordId={record.id}
             files={data.files}
             canUpload={meta.caps.upload}
             jumpPage={jump}
+            active={split || tab === 'files'}
+            locked={metadataPending || personsPending || actionBusy}
+            onBusyChange={setFileBusy}
             onChanged={() => setReload((n) => n + 1)}
           />
-        </div>
+        </section>
       </div>
     </div>
   );

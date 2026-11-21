@@ -32,7 +32,7 @@ const fields: Field<MasterItem>[] = [
 export default function HakiMasterPage() {
   return (
     <CrudPage<MasterItem>
-      title="Master HAKI"
+      title="Master HKI"
       description="Nilai master tidak dihapus agar dokumen lama tetap terbaca: nonaktifkan item yang tidak dipakai lagi. Kode tidak dapat diubah setelah dibuat."
       table="hki_master_items"
       select="*"
