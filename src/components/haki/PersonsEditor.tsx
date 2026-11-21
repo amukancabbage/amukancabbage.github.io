@@ -1,9 +1,13 @@
+import { Plus, RefreshCw, Save, SquarePen, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { IconLabel } from '../AppIcon';
 import { useUnsavedDraft } from '../DraftGuard';
+import SearchSelect from '../SearchSelect';
 import { HakiError, errorText, rpc } from '../../haki/api';
 import { COCOK_LABEL, PERAN_LABEL } from '../../haki/constants';
 import { matchPersons, normalizeName, toCandidates, type DirectoryEntry } from '../../haki/personMatch';
 import type { HkiPerson, HkiRecord, Peran } from '../../haki/types';
+import { supabase } from '../../lib/supabase';
 
 type Draft = {
   id?: number;
@@ -59,8 +63,6 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkFor, setLinkFor] = useState<number | null>(null);
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState<Lecturer[]>([]);
   const initial = useRef('');
   const editVersion = useRef(record.versi);
   const inFlight = useRef<Promise<boolean> | null>(null);
@@ -149,13 +151,12 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
     }
   }
 
-  async function search(value: string) {
-    setQ(value);
-    if (value.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    setResults(await rpc<Lecturer[]>('hki_lecturer_search', { p_q: value }).catch(() => []));
+  async function search(value: string, signal: AbortSignal) {
+    const { data, error } = await supabase.rpc('hki_lecturer_search', { p_q: value }).abortSignal(signal);
+    if (error) throw error;
+    return ((data ?? []) as Lecturer[]).map((row) => ({
+      value: String(row.id), label: row.nama, detail: [row.unit, row.nidn ? 'NIDN ' + row.nidn : null].filter(Boolean).join(', '),
+    }));
   }
 
   async function link(personId: number, dosenId: number | null) {
@@ -164,8 +165,6 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
     try {
       const version = await rpc<number>('hki_link_person', { p_record: record.id, p_versi: record.versi, p_person: personId, p_dosen: dosenId });
       setLinkFor(null);
-      setQ('');
-      setResults([]);
       onSaved(version);
     } catch (e) {
       await handle(e);
@@ -181,10 +180,10 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
         {canEdit && !editing && (
           <div className="actions">
             <button className="secondary" onClick={rematch} disabled={busy || persons.length === 0}>
-              Cocokkan ulang
+              <IconLabel icon={RefreshCw}>Cocokkan ulang</IconLabel>
             </button>
             <button onClick={startEdit} disabled={busy}>
-              Ubah daftar
+              <IconLabel icon={SquarePen}>Ubah daftar</IconLabel>
             </button>
           </div>
         )}
@@ -229,14 +228,8 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
                       <td className="actions">
                         {linkFor === p.id ? (
                           <div className="link-search">
-                            <input autoFocus aria-label="Cari nama dosen" placeholder="Cari nama dosen…" value={q} onChange={(e) => search(e.target.value)} />
-                            {results.map((r) => (
-                              <button key={r.id} className="secondary" onClick={() => link(p.id, r.id)} disabled={busy}>
-                                {r.nama}
-                                {r.unit ? ` · ${r.unit}` : ''}
-                                {r.nidn ? ` · ${r.nidn}` : ''}
-                              </button>
-                            ))}
+                            <SearchSelect label="Cari nama dosen" placeholder="Ketik nama dosen" autoFocus
+                              lookup={search} disabled={busy} onPick={(item) => { if (item) void link(p.id, Number(item.value)); }} />
                             <button className="link-button" onClick={() => setLinkFor(null)}>
                               Batal
                             </button>
@@ -280,7 +273,7 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
                 onChange={(e) => patch(i, { kewarganegaraan: e.target.value })}
               />
               <button className="danger" onClick={() => setDrafts((x) => x.filter((_, j) => j !== i))}>
-                Hapus
+                <IconLabel icon={Trash2}>Hapus</IconLabel>
               </button>
             </div>
           ))}
@@ -291,10 +284,10 @@ export default function PersonsEditor({ record, persons, editable, locked = fals
                 setDrafts((x) => [...x, { nama: '', peran: 'pencipta', alamat: '', kewarganegaraan: '', dosen_id: null, link_manual: false }])
               }
             >
-              Tambah orang
+              <IconLabel icon={Plus}>Tambah orang</IconLabel>
             </button>
             <button onClick={() => void save()} disabled={busy || locked}>
-              {busy ? 'Menyimpan...' : 'Simpan daftar'}
+              <IconLabel icon={Save}>{busy ? 'Menyimpan...' : 'Simpan daftar'}</IconLabel>
             </button>
             <button className="secondary" onClick={() => setEditing(false)} disabled={busy}>
               Batal

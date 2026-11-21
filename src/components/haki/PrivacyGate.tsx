@@ -1,6 +1,8 @@
+import { ShieldCheck } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useAuth, useProfile } from '../../auth';
 import { errorText, rpc } from '../../haki/api';
+import { IconLabel } from '../AppIcon';
 
 // pemberitahuan privasi wajib disetujui sebelum unggah
 export default function PrivacyGate({ children }: { children: ReactNode }) {
@@ -43,7 +45,7 @@ export default function PrivacyGate({ children }: { children: ReactNode }) {
       </label>
       {error && <p className="error" role="alert">{error}</p>}
       <button disabled={!checked || busy} onClick={accept}>
-        {busy ? 'Menyimpan...' : 'Setuju dan lanjutkan'}
+        <IconLabel icon={ShieldCheck}>{busy ? 'Menyimpan...' : 'Setuju dan lanjutkan'}</IconLabel>
       </button>
     </div>
   );

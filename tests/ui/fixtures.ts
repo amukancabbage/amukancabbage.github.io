@@ -20,6 +20,7 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
   academicTotal?: number;
   failSecondUpload?: boolean;
   secondQueueRow?: boolean;
+  previewFiles?: boolean;
 } = {}) {
   const record = {
     id: documentId, judul: 'Sertifikat uji antarmuka', jenis: 'hak_cipta',
@@ -64,6 +65,12 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
     id: 1, judul_penelitian: researchTitle, dosen_id: 71, tahun: 2025, biaya: 4000000, skema: 'Hibah internal',
     created_by: userId, dosen: lecturer, anggota: [], url_bukti: 'https://example.test/bukti',
   };
+  const previewPath = `records/${documentId}/preview`;
+  const mainFile = {
+    id: 'file-main', record_id: documentId, jenis: 'utama', nama_asli: 'Sertifikat Uji.pdf',
+    storage_path: previewPath + '.pdf', mime: 'application/pdf', ukuran: 1200, halaman: 3, created_at: now,
+    prep: { pages: [previewPath + '.1.png', previewPath + '.3.png'], page_numbers: [1, 3] },
+  };
   const tables: Record<string, unknown[]> = {
     profiles: [profile],
     units: [unit],
@@ -72,6 +79,10 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
     hki_settings: settings,
     hki_master_items: [{ id: 1, kategori: 'jenis_ciptaan', nilai: 'program_komputer', label: 'Program komputer', aktif: true, urutan: 1 }],
     hki_field_values: [{ field: 'judul', nilai_ai: record.judul, confidence: 0.92, dikonfirmasi: false, diubah: false, page: 1 }],
+    hki_files: options.previewFiles ? [mainFile, {
+      ...mainFile, id: 'file-attachment', jenis: 'lampiran', nama_asli: 'Lampiran ringkasan dan bukti pengajuan sertifikat.png',
+      storage_path: previewPath + '.png', mime: 'image/png', halaman: null, prep: {},
+    }] : [],
     penelitian: [research],
     pengabdian: [{ ...research, judul_pengabdian: 'Pelatihan Pengelolaan Data bagi Perangkat Desa' }],
     artikel_mahasiswa: [{ id: 1, judul: 'Pemetaan Kualitas Udara di Lingkungan Kampus', tahun: 2025, nama: 'Mahasiswa Uji', jenis_artikel: 'Jurnal', created_by: userId }],
@@ -101,6 +112,14 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
       user: { id: userId, email: profile.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: now },
     });
     if (pathname.startsWith('/storage/v1/object/')) {
+      if (options.previewFiles && request.method() === 'GET') {
+        return route.fulfill({
+          status: 200,
+          headers: cors,
+          contentType: 'image/png',
+          body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+XgfsAAAAASUVORK5CYII=', 'base64'),
+        });
+      }
       if (request.method() === 'HEAD') return reply(null, stored.has(pathname) ? 200 : 404);
       storageWrites.push(pathname);
       if (failUpload && pathname.includes(secondDocumentId) && pathname.endsWith('.prep.json')) {
@@ -157,6 +176,19 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
     if (idFilter?.startsWith('eq.')) {
       rows = rows.filter((row) => String((row as { id?: string | number }).id) === idFilter.slice(3));
     }
+    if (name === 'dosen') {
+      const ids = searchParams.get('id');
+      const term = searchParams.get('nama')?.match(/^ilike\.%(.+)%$/)?.[1].toLowerCase();
+      const scope = searchParams.get('unit_id');
+      rows = rows.filter((row) => {
+        const item = row as { id: number; nama: string; unit_id: number };
+        return (!ids?.startsWith('in.') || ids.slice(4, -1).split(',').includes(String(item.id))) &&
+          (!term || item.nama.toLowerCase().includes(term)) &&
+          (!scope?.startsWith('in.') || scope.slice(4, -1).split(',').includes(String(item.unit_id)));
+      });
+      const limit = searchParams.get('limit');
+      if (limit) rows = rows.slice(0, Number(limit));
+    }
     const total = name === 'hki_record_list' ? options.archiveTotal : name === 'penelitian' ? options.academicTotal : undefined;
     return reply(request.headers().accept?.includes('vnd.pgrst.object') ? rows[0] ?? null : rows, 200, total ?? rows.length);
   });
@@ -167,12 +199,12 @@ export async function demo(page: Page, role: Role = 'dosen', options: {
     uploadOwners,
     registrations,
     storageWrites,
-    async login(path = '/') {
+    async login(path = '/masuk') {
       await page.goto('/#' + path);
       await page.getByLabel('Email', { exact: true }).fill(profile.email);
       await page.getByLabel('Kata sandi', { exact: true }).fill('test-password');
       await page.getByRole('button', { name: 'Masuk', exact: true }).click();
-      await expect(page.locator('main.content').getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.locator('main.content').getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
     },
   };
 }

@@ -10,6 +10,14 @@ import './App.css';
 import './shell.css';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+
+function SignInRoute() {
+  const { session, loading } = useAuth();
+  if (loading) return <AsyncState loading />;
+  if (session) return <Navigate replace to="/beranda" />;
+  return <Suspense fallback={<AsyncState loading />}><LoginPage /></Suspense>;
+}
 
 function AppRoutes() {
   const { session, profile, loading, signOut, refreshProfile, profileError } = useAuth();
@@ -45,16 +53,22 @@ function RouteError() {
 
 // Hash history mempertahankan permalink saat aplikasi disajikan dari hosting statis.
 const router = createHashRouter([{
-  element: <AppRoutes />,
   errorElement: <RouteError />,
   children: [
-    ...menu.flatMap((group) => group.items.map((item) => ({
-      path: item.path,
-      element: <RouteScreen item={item} />,
-      handle: { title: item.label, section: group.title },
-      errorElement: <RouteError />,
-    }))),
-    { path: '*', element: <Navigate replace to="/beranda" /> },
+    { path: '/', element: <Suspense fallback={<AsyncState loading />}><LandingPage /></Suspense> },
+    { path: '/masuk', element: <SignInRoute /> },
+    {
+      element: <AppRoutes />,
+      children: [
+        ...menu.flatMap((group) => group.items.map((item) => ({
+          path: item.path,
+          element: <RouteScreen item={item} />,
+          handle: { title: item.label, section: group.title, icon: item.icon },
+          errorElement: <RouteError />,
+        }))),
+        { path: '*', element: <Navigate replace to="/beranda" /> },
+      ],
+    },
   ],
 }]);
 

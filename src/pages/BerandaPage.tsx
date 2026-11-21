@@ -1,4 +1,6 @@
+import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { IconLabel } from '../components/AppIcon';
 import AsyncState from '../components/AsyncState';
 import { supabase } from '../lib/supabase';
 
@@ -41,7 +43,7 @@ export default function BerandaPage() {
 
   const total = rekap.find((r) => r.prodi_id == null);
   const perProdi = rekap.filter((r) => r.prodi_id != null);
-  const periode = tahun ? `Tahun ${tahun}` : 'Semua tahun';
+  const periode = tahun ? `tahun ${tahun}` : 'semua tahun';
 
   return (
     <section className="page">
@@ -51,7 +53,7 @@ export default function BerandaPage() {
           <p className="muted">Jumlah penelitian dan pengabdian berdasarkan tahun dan program studi.</p>
         </div>
         <label className="filter">
-          <span>Tahun</span>
+          <IconLabel icon={CalendarDays}>Tahun</IconLabel>
           <select value={tahun} onChange={(e) => setTahun(e.target.value)}>
             <option value="">Semua tahun</option>
             {daftarTahun.map((t) => (
@@ -65,13 +67,14 @@ export default function BerandaPage() {
 
       <AsyncState error={error} loading={loading} onRetry={() => setReload((n) => n + 1)} />
 
-      <h2 className="section-title">Total · {periode}</h2>
+      <h2 className="section-title">Total untuk {periode}</h2>
       <div className="stats">
         <Stat label="Penelitian" value={loading ? undefined : total?.penelitian} />
         <Stat label="Pengabdian" value={loading ? undefined : total?.pengabdian} />
       </div>
 
-      <h2 className="section-title">Per Program Studi · {periode}</h2>
+      <h2 className="section-title">Per program studi untuk {periode}</h2>
+      {!loading && !error && perProdi.length === 0 && <AsyncState empty="Belum ada data per program studi untuk periode ini." />}
       <div className="prodi-grid">
         {perProdi.map((r) => (
           <div key={r.prodi_id} className="card prodi-card">

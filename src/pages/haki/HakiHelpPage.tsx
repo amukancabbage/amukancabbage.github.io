@@ -1,7 +1,7 @@
 const FAQ: [string, string][] = [
   [
     'Bagaimana alur dokumen HKI?',
-    'Unggah sertifikat → (opsional) dibaca AI → periksa dan lengkapi metadata serta daftar pencipta → ajukan ke validator → validator menyetujui (terarsip), meminta revisi, atau menolak. Dokumen terarsip dapat diminta koreksi.',
+    'Unggah sertifikat. Jika pembacaan otomatis aktif, sistem akan mencoba membaca sertifikat. Periksa dan lengkapi metadata serta daftar pencipta, lalu ajukan dokumen ke validator. Validator dapat menyetujui, meminta revisi, atau menolak pengajuan. Dokumen yang disetujui masuk arsip dan dapat dimintakan koreksi.',
   ],
   [
     'Siapa yang dapat mengajukan?',

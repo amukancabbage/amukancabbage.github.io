@@ -2,10 +2,12 @@ import { expect, test } from '@playwright/test';
 import { demo, documentId, documentPath, researchTitle, secondDocumentId } from './fixtures';
 
 test('form masuk tetap bisa dipakai di lima lebar dan dua tema', async ({ page }) => {
-  await page.goto('/#/beranda');
+  await page.goto('/#/masuk');
   const show = page.getByRole('button', { name: 'Tampilkan kata sandi' });
   const password = page.getByLabel('Kata sandi', { exact: true });
   await expect(page.getByRole('heading', { name: 'Masuk', exact: true })).toBeVisible();
+  await expect(show.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  await expect(show.locator('svg')).toHaveAttribute('focusable', 'false');
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     for (const colorScheme of ['light', 'dark'] as const) {
@@ -37,6 +39,33 @@ test('form masuk tetap bisa dipakai di lima lebar dan dua tema', async ({ page }
   await expect(password).toHaveAttribute('type', 'password');
 });
 
+test('ikon pratinjau punya label, target sentuh, dan bisa dipakai lewat keyboard', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await (await demo(page, 'dosen', { previewFiles: true })).login(documentPath);
+  await page.getByRole('tab', { name: 'Metadata' }).press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Berkas' })).toBeFocused();
+  const panel = page.getByRole('tabpanel', { name: 'Berkas' });
+  await expect(panel.getByRole('img', { name: 'Halaman 1' })).toBeVisible();
+
+  const zoom = panel.getByRole('button', { name: 'Perbesar' });
+  const remove = panel.getByRole('button', { name: 'Hapus lampiran' });
+  for (const action of [zoom, remove]) {
+    await expect(action.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+  }
+  const files = panel.getByRole('button', { name: /^(Utama|Lampiran): / });
+  await expect(files).toHaveCount(2);
+  for (const action of [zoom, remove, ...await files.all()]) {
+    const box = (await action.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await zoom.press('Enter');
+  await expect(panel.getByText('125%', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Halaman berkas berikutnya' }).press('Enter');
+  await expect(panel.getByRole('img', { name: 'Halaman 3' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('tabel utama muat di desktop dan editor mengembalikan fokus', async ({ page }) => {
   await (await demo(page, 'dosen', { academicTotal: 11 })).login('/penelitian?q=Penelitian&page=2');
   const table = page.getByRole('table', { name: 'Penelitian', exact: true });
@@ -59,6 +88,7 @@ test('tabel utama muat di desktop dan editor mengembalikan fokus', async ({ page
   await expect(table.getByRole('button', { name: 'Hapus' })).toBeVisible();
   await edit.press('Enter');
   const dialog = page.getByRole('dialog', { name: 'Ubah penelitian' });
+  await expect(dialog.getByRole('combobox', { name: 'Ketua', exact: true })).toHaveValue('Dosen Uji');
   await dialog.getByLabel('Judul Penelitian').fill('Penelitian Uji diperbarui');
   await dialog.getByRole('button', { name: 'Simpan', exact: true }).click();
   await expect(dialog).toHaveCount(0);
@@ -77,7 +107,7 @@ test('tabel utama muat di desktop dan editor mengembalikan fokus', async ({ page
 test('antrean ponsel membuka pilihan massal saat diminta dan menampilkan hasil RPC', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const fixture = await demo(page, 'validator', { secondQueueRow: true });
-  await fixture.login('/haki/antrean?unit=1');
+  await fixture.login('/haki/antrean?unit=1&size=10&sort=judul');
   const first = page.getByRole('link', { name: 'Sertifikat uji antarmuka', exact: true });
   await expect(first).toBeVisible();
   expect((await first.boundingBox())?.y).toBeLessThan(360);
@@ -98,14 +128,14 @@ test('antrean ponsel membuka pilihan massal saat diminta dan menampilkan hasil R
   await submit.press('Enter');
   await confirm.getByRole('button', { name: 'Setujui dokumen', exact: true }).click();
   await expect(page.getByText('0 disetujui. 1 dilewati.')).toBeVisible();
-  await expect(page.getByText('Sertifikat uji antarmuka · ada field berkeyakinan rendah')).toBeVisible();
+  await expect(page.getByText('Sertifikat uji antarmuka (ada field berkeyakinan rendah)')).toBeVisible();
   await expect(mode).toHaveAttribute('aria-expanded', 'false');
   expect(fixture.bulkCalls).toEqual([[documentId]]);
   await first.click();
   await page.getByRole('button', { name: 'Berikutnya', exact: true }).click();
   await expect(page).toHaveURL((url) => url.hash === '#/haki/dokumen/' + secondDocumentId);
-  await page.getByRole('link', { name: '‹ Antrean' }).click();
-  await expect(page).toHaveURL((url) => url.hash === '#/haki/antrean?unit=1');
+  await page.getByRole('link', { name: 'Antrean', exact: true }).click();
+  await expect(page).toHaveURL((url) => url.hash === '#/haki/antrean?unit=1&size=10&sort=judul');
 });
 
 test('unggah atas nama menampilkan hasil campuran dan melanjutkan berkas gagal', async ({ page }) => {
@@ -113,20 +143,23 @@ test('unggah atas nama menampilkan hasil campuran dan melanjutkan berkas gagal',
   const fixture = await demo(page, 'operator', { failSecondUpload: true });
   await fixture.login('/haki/unggah');
   await expect(page.getByRole('button', { name: 'Pilih berkas', exact: true })).toHaveCount(0);
-  await page.getByLabel('Atas nama dosen').selectOption('71');
+  const owner = page.getByRole('combobox', { name: 'Atas nama dosen' });
+  await owner.fill('Dosen Uji');
+  await page.getByRole('option', { name: 'Dosen Uji' }).click();
   const png = await page.evaluate(() => document.createElement('canvas').toDataURL('image/png').split(',')[1]);
   await page.locator('input[type=file][multiple]').setInputFiles(['sertifikat-a.png', 'sertifikat-b.png'].map((name) => ({
     name, mimeType: 'image/png', buffer: Buffer.from(png, 'base64'),
   })));
   await expect(page.getByText('2 berkas siap diunggah atas nama Dosen Uji.')).toBeVisible();
   await page.getByRole('button', { name: 'Unggah 2 berkas' }).click();
-  await expect(page.getByText('1 tersimpan · 1 gagal')).toBeVisible();
+  await expect(page.getByText('1 tersimpan, 1 gagal')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Buka dokumen' })).toHaveCount(1);
   const failed = page.getByRole('listitem').filter({ hasText: 'sertifikat-b.png' });
   await expect(failed).toContainText('Penyimpanan sementara gagal');
-  await page.getByLabel('Atas nama dosen').selectOption('72');
+  await owner.fill('Mitra');
+  await page.getByRole('option', { name: 'Mitra Uji' }).click();
   await failed.getByRole('button', { name: 'Coba lagi' }).click();
-  await expect(page.getByText('2 tersimpan · 0 gagal')).toBeVisible();
+  await expect(page.getByText('2 tersimpan, 0 gagal')).toBeVisible();
   await expect(failed).toContainText('Dosen Uji');
   await expect(failed.getByRole('link', { name: 'Buka dokumen' })).toHaveAttribute('href', '#/haki/dokumen/' + secondDocumentId);
   expect(fixture.uploadOwners).toEqual([71, 71]);

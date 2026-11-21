@@ -8,21 +8,32 @@ type FilterOptions = { units: Unit[]; master: MasterItem[]; settings: HakiSettin
 const emptyUnits: Unit[] = [];
 const emptyMaster: MasterItem[] = [];
 
+export async function loadUnits(signal: AbortSignal) {
+  const rows: Unit[] = [];
+  const size = 500;
+  for (let offset = 0; ; offset += size) {
+    const { data, error } = await supabase.from('units').select('id,nama,parent_id,tipe')
+      .order('nama').order('id').range(offset, offset + size - 1).abortSignal(signal);
+    if (error) throw error;
+    rows.push(...(data as Unit[]));
+    if (data.length < size) return rows;
+  }
+}
+
 export function useFilterOptions() {
   const [options, setOptions] = useState<FilterOptions | null>(null);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    let alive = true;
+    const controller = new AbortController();
     setError('');
-    void Promise.all([supabase.from('units').select('*').order('nama'), loadMaster(), loadSettings()])
+    void Promise.all([loadUnits(controller.signal), loadMaster(), loadSettings()])
       .then(([units, master, settings]) => {
-        if (units.error) throw units.error;
-        if (alive) setOptions({ units: (units.data as Unit[]) ?? [], master, settings });
+        if (!controller.signal.aborted) setOptions({ units, master, settings });
       })
-      .catch(() => { if (alive) setError('Pilihan filter gagal dimuat.'); });
-    return () => { alive = false; };
+      .catch(() => { if (!controller.signal.aborted) setError('Pilihan filter gagal dimuat.'); });
+    return () => controller.abort();
   }, [reload]);
 
   return {

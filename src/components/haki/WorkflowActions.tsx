@@ -1,4 +1,6 @@
+import { Check, MessageSquare, ScanText, Send, SquarePen, Trash2, X } from 'lucide-react';
 import { useEffect, useEffectEvent, useState } from 'react';
+import { IconLabel } from '../AppIcon';
 import { useUnsavedDraft } from '../DraftGuard';
 import { HakiError, errorText, rpc, runExtraction } from '../../haki/api';
 import { fieldLabel } from '../../haki/constants';
@@ -138,40 +140,40 @@ export default function WorkflowActions({ record, meta, reviewNotes, blockedReas
         <div className="form-actions wrap">
           {caps.submit && (
             <button onClick={() => setMode('submit')} disabled={disabled}>
-              Ajukan ke validator
+              <IconLabel icon={Send}>Ajukan ke validator</IconLabel>
             </button>
           )}
           {caps.review && (
             <>
               <button onClick={() => review('approve')} disabled={disabled} title="Pintasan: A">
-                Setujui &amp; arsipkan
+                <IconLabel icon={Check}>Setujui &amp; arsipkan</IconLabel>
               </button>
               <button className="secondary" onClick={() => setMode('revision')} disabled={disabled} title="Pintasan: R">
-                Minta revisi
+                <IconLabel icon={MessageSquare}>Minta revisi</IconLabel>
               </button>
             </>
           )}
           {caps.correction && (
             <button onClick={() => setMode('correction')} disabled={disabled}>
-              Minta koreksi arsip
+              <IconLabel icon={SquarePen}>Minta koreksi arsip</IconLabel>
             </button>
           )}
-          {caps.extract && firstRead && <button onClick={extract} disabled={disabled}>Baca dengan AI</button>}
+          {caps.extract && firstRead && <button onClick={extract} disabled={disabled}><IconLabel icon={ScanText}>Baca dengan AI</IconLabel></button>}
           {(caps.review || caps.delete || (caps.extract && !firstRead)) && (
             <details className="actions-disclosure">
               <summary>Tindakan lain</summary>
               <div className="actions">
                 {caps.extract && !firstRead && (
-                  <button className="secondary" onClick={extract} disabled={disabled}>Baca ulang AI ({meta.reread_count}/{meta.max_rereads})</button>
+                  <button className="secondary" onClick={extract} disabled={disabled}><IconLabel icon={ScanText}>Baca ulang AI ({meta.reread_count}/{meta.max_rereads})</IconLabel></button>
                 )}
-                {caps.review && <button className="danger" onClick={() => setMode('reject')} disabled={disabled}>Tolak</button>}
+                {caps.review && <button className="danger" onClick={() => setMode('reject')} disabled={disabled}><IconLabel icon={X}>Tolak</IconLabel></button>}
                 {caps.delete && (
                   <button
                     className="danger"
                     disabled={disabled}
                     onClick={() => confirm('Hapus dokumen ini?') && run(() => rpc('hki_delete_record', { p_record: record.id }), { deleted: true })}
                   >
-                    Hapus dokumen
+                    <IconLabel icon={Trash2}>Hapus dokumen</IconLabel>
                   </button>
                 )}
               </div>
@@ -201,7 +203,7 @@ export default function WorkflowActions({ record, meta, reviewNotes, blockedReas
           </label>
           <div className="form-actions">
             <button onClick={submit} disabled={disabled || !statement || meta.problems.length > 0}>
-              Kirim pengajuan
+              <IconLabel icon={Send}>Kirim pengajuan</IconLabel>
             </button>
             <button className="secondary" onClick={reset} disabled={busy}>
               Batal

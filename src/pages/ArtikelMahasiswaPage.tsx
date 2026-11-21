@@ -1,6 +1,6 @@
 import { useProfile } from '../auth';
 import CrudPage, { type Field, type RowValues } from '../components/CrudPage';
-import { supabase } from '../lib/supabase';
+import { lecturerSource } from '../lib/search';
 
 type ArtikelMahasiswa = {
   id: number;
@@ -79,9 +79,8 @@ export default function ArtikelMahasiswaPage() {
       name: 'anggota_dosen',
       label: 'Anggota Dosen',
       type: 'multiselect',
-      picker: 'list',
       wide: true,
-      source: { table: 'dosen', select: 'id, nama', order: 'nama', label: (d: any) => d.nama },
+      source: lecturerSource,
       junction: { table: 'artikel_mahasiswa_dosen', foreignKey: 'artikel_mahasiswa_id', valueKey: 'dosen_id' },
       getValues: (a) => (a.anggota_dosen ?? []).map((d) => d.dosen_id),
       // dosen yang menginput otomatis menjadi anggota dosen
@@ -98,21 +97,6 @@ export default function ArtikelMahasiswaPage() {
     (isDosen &&
       (a.created_by === profile.id || (a.anggota_dosen ?? []).some((d) => d.dosen_id === myDosenId)));
 
-  // pencarian tahun dan nama anggota dosen
-  async function searchExtra(keyword: string) {
-    const conditions = /^\d{4}$/.test(keyword) ? [`tahun.eq.${keyword}`] : [];
-    const { data: dosen } = await supabase.from('dosen').select('id').ilike('nama', `%${keyword}%`);
-    const dosenIds = (dosen ?? []).map((d) => d.id);
-    if (dosenIds.length === 0) return conditions;
-    const { data } = await supabase
-      .from('artikel_mahasiswa_dosen')
-      .select('artikel_mahasiswa_id')
-      .in('dosen_id', dosenIds);
-    const ids = [...new Set((data ?? []).map((a) => a.artikel_mahasiswa_id))];
-    if (ids.length > 0) conditions.push(`id.in.(${ids.join(',')})`);
-    return conditions;
-  }
-
   return (
     <CrudPage<ArtikelMahasiswa>
       title="Artikel Mahasiswa"
@@ -128,7 +112,10 @@ export default function ArtikelMahasiswaPage() {
       canEdit={canEdit}
       pageSize={10}
       searchColumns={['judul', 'npm', 'nama', 'jenis_artikel', 'publisher']}
-      searchExtra={searchExtra}
+      searchRelations={[{
+        select: 'match_anggota:artikel_mahasiswa_dosen(match_dosen:dosen!inner())',
+        column: 'match_anggota.match_dosen.nama', match: 'match_anggota',
+      }]}
       searchPlaceholder="Cari judul, NPM, nama mahasiswa, publisher, tahun, atau nama dosen..."
     />
   );

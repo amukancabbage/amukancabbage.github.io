@@ -1,9 +1,11 @@
+import type { LucideIcon } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
+import { IconLabel } from './AppIcon';
 
 export default function Tabs<T extends string>({ id, label, tabs, value, onChange }: {
   id: string;
   label: string;
-  tabs: readonly { key: T; label: string }[];
+  tabs: readonly { key: T; label: string; icon?: LucideIcon }[];
   value: T;
   onChange: (value: T) => void;
 }) {
@@ -28,11 +30,10 @@ export default function Tabs<T extends string>({ id, label, tabs, value, onChang
           aria-selected={value === tab.key}
           aria-controls={id + '-panel-' + tab.key}
           tabIndex={value === tab.key ? 0 : -1}
-          className={value === tab.key ? '' : 'secondary'}
           onClick={() => onChange(tab.key)}
           onKeyDown={(event) => move(event, index)}
         >
-          {tab.label}
+          {tab.icon ? <IconLabel icon={tab.icon}>{tab.label}</IconLabel> : tab.label}
         </button>
       ))}
     </div>

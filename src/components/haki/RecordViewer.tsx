@@ -1,4 +1,6 @@
+import { ChevronLeft, ChevronRight, ExternalLink, Paperclip, RotateCw, Trash2, Upload, ZoomIn, ZoomOut } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import AppIcon, { IconLabel } from '../AppIcon';
 import AsyncState from '../AsyncState';
 import { useUnsavedDraft } from '../DraftGuard';
 import { downloadBlob, errorText, rpc } from '../../haki/api';
@@ -127,7 +129,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, act
         {canUpload && (
           <>
             <button className="secondary" disabled={!canChangeFile} onClick={() => input.current?.click()}>
-              {busy ? 'Mengunggah...' : files.length === 0 ? 'Unggah berkas utama' : 'Tambah lampiran'}
+              <IconLabel icon={files.length === 0 ? Upload : Paperclip}>{busy ? 'Mengunggah...' : files.length === 0 ? 'Unggah berkas utama' : 'Tambah lampiran'}</IconLabel>
             </button>
             <input
               ref={input}
@@ -144,7 +146,7 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, act
       </div>
       {error && <AsyncState error={error} onRetry={() => setReload((n) => n + 1)} />}
       {files.length === 0 ? (
-        <p className="muted pad">Belum ada berkas.</p>
+        <AsyncState empty="Belum ada berkas." />
       ) : (
         <>
           <div className="file-tabs">
@@ -161,8 +163,8 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, act
                 </button>
                 <span className="muted small"> {fmtBytes(f.ukuran)}</span>
                 {canUpload && f.jenis === 'lampiran' && (
-                  <button className="link-button danger-text" onClick={() => removeFile(f)} disabled={!canChangeFile} aria-label="Hapus lampiran">
-                    ×
+                  <button className="link-button danger-text file-remove tw:inline-flex tw:items-center tw:justify-center" onClick={() => removeFile(f)} disabled={!canChangeFile} aria-label="Hapus lampiran">
+                    <AppIcon icon={Trash2} />
                   </button>
                 )}
               </span>
@@ -172,29 +174,29 @@ export default function RecordViewer({ recordId, files, canUpload, jumpPage, act
             {pages.length > 1 && (
               <>
                 <button className="secondary" aria-label="Halaman berkas sebelumnya" disabled={pageIdx === 0} onClick={() => setPageIdx(pageIdx - 1)}>
-                  ‹
+                  <AppIcon icon={ChevronLeft} />
                 </button>
                 <span className="small" role="status">
                   Hal. {pageNumbers[pageIdx]} ({pageIdx + 1}/{pages.length} dipratinjau
                   {file?.halaman ? ` dari ${file.halaman}` : ''})
                 </span>
                 <button className="secondary" aria-label="Halaman berkas berikutnya" disabled={pageIdx >= pages.length - 1} onClick={() => setPageIdx(pageIdx + 1)}>
-                  ›
+                  <AppIcon icon={ChevronRight} />
                 </button>
               </>
             )}
             <button className="secondary" onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))} aria-label="Perkecil">
-              −
+              <AppIcon icon={ZoomOut} />
             </button>
             <span className="small">{Math.round(zoom * 100)}%</span>
             <button className="secondary" onClick={() => setZoom((z) => Math.min(3, z + 0.25))} aria-label="Perbesar">
-              +
+              <AppIcon icon={ZoomIn} />
             </button>
             <button className="secondary" onClick={() => setRotate((r) => (r + 90) % 360)}>
-              Putar
+              <IconLabel icon={RotateCw}>Putar</IconLabel>
             </button>
             <button className="secondary" onClick={openOriginal}>
-              Buka asli
+              <IconLabel icon={ExternalLink}>Buka asli</IconLabel>
             </button>
           </div>
           <div className="viewer-stage">

@@ -1,3 +1,4 @@
+import { FileText, Files } from 'lucide-react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useProfile } from '../../auth';
@@ -71,7 +72,7 @@ async function loadAll(id: string): Promise<Data | null> {
   };
 }
 
-const recordTabs = [{ key: 'metadata', label: 'Metadata' }, { key: 'files', label: 'Berkas' }] as const;
+const recordTabs = [{ key: 'metadata', label: 'Metadata', icon: FileText }, { key: 'files', label: 'Berkas', icon: Files }] as const;
 
 export default function HakiRecordPage() {
   const { id = '' } = useParams();
@@ -239,7 +240,7 @@ function RecordDetail({ id }: { id: string }) {
       <header className="record-head">
         <div className="record-topline">
           <div className="crumbs" data-record-shortcuts>
-            {nav ? <Link to={nav.back}>‹ Antrean</Link> : <Link to={back}>‹ Kembali ke daftar</Link>}
+            <Link to={nav?.back ?? back}>{nav ? 'Antrean' : 'Kembali ke daftar'}</Link>
             {nav && (
               <span className="queue-nav">
                 <button className="secondary" disabled={!nav.prev} onClick={() => navigate(`/haki/dokumen/${nav.prev}`)} title="Pintasan: P">
@@ -259,10 +260,11 @@ function RecordDetail({ id }: { id: string }) {
         </div>
         <h1>{record.judul || '(tanpa judul)'}</h1>
         <p className="muted">
-          {record.jenis ? JENIS_LABEL[record.jenis] : 'Jenis belum diisi'} · {data.ownerNama ?? 'Pemilik belum tersedia'}
-          {data.unitNama ? ` · ${data.unitNama}` : ''}
+          {record.jenis ? JENIS_LABEL[record.jenis] : 'Jenis belum diisi'}
+          {data.ownerNama ? `, milik ${data.ownerNama}` : ', pemilik belum tersedia'}
+          {data.unitNama ? ` (${data.unitNama})` : ''}
         </p>
-        <p className="muted small">Diunggah {fmtDate(record.created_at)} · Versi {record.versi}</p>
+        <p className="muted small">Diunggah {fmtDate(record.created_at)}, versi {record.versi}</p>
       </header>
 
       {help && (
@@ -304,8 +306,10 @@ function RecordDetail({ id }: { id: string }) {
           Ada {meta.duplicates.total} kemungkinan duplikat.
           {meta.duplicates.items.map((d) => (
             <div key={d.id} className="small">
-              <Link to={`/haki/dokumen/${d.id}`}>{d.judul || '(tanpa judul)'}</Link> — sama {d.alasan.replace('_', ' ')}
-              {d.alasan === 'judul' ? ` (${Math.round(d.skor * 100)}%)` : ''}
+              <Link to={`/haki/dokumen/${d.id}`}>{d.judul || '(tanpa judul)'}</Link>
+              {d.alasan === 'judul'
+                ? ` (kemiripan judul ${Math.round(d.skor * 100)}%)`
+                : ` (sama ${d.alasan.replace('_', ' ')})`}
             </div>
           ))}
         </div>

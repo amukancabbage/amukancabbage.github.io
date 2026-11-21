@@ -1,5 +1,7 @@
+import { Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import { useUnsavedDraft } from '../../components/DraftGuard';
 import { errorText, rpc, toHakiError } from '../../haki/api';
@@ -64,12 +66,12 @@ export default function HakiProfilePage() {
                 <span>Alias {index + 1}</span>
                 <input value={alias} disabled={busy} onChange={(event) => setAliases((items) => items.map((item, position) => position === index ? event.target.value : item))} />
               </label>
-              <button type="button" className="danger" disabled={busy} aria-label={'Hapus alias ' + (index + 1)} onClick={() => setAliases((items) => items.filter((_, position) => position !== index))}>Hapus</button>
+              <button type="button" className="danger" disabled={busy} aria-label={'Hapus alias ' + (index + 1)} onClick={() => setAliases((items) => items.filter((_, position) => position !== index))}><IconLabel icon={Trash2}>Hapus</IconLabel></button>
             </div>
           ))}
           <div className="form-actions wrap">
-            <button className="secondary" disabled={busy || aliases.length >= MAX_ALIASES} onClick={() => setAliases((items) => [...items, ''])}>Tambah alias</button>
-            <button disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Menyimpan…' : 'Simpan'}</button>
+            <button className="secondary" disabled={busy || aliases.length >= MAX_ALIASES} onClick={() => setAliases((items) => [...items, ''])}><IconLabel icon={Plus}>Tambah alias</IconLabel></button>
+            <button disabled={busy || !dirty} onClick={() => void save()}><IconLabel icon={Save}>{busy ? 'Menyimpan…' : 'Simpan'}</IconLabel></button>
           </div>
         </section>
       )}

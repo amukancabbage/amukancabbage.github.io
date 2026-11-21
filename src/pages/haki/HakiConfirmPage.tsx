@@ -1,4 +1,6 @@
+import { Check, X } from 'lucide-react';
 import { useState } from 'react';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import { useRemoteData } from '../../lib/useRemoteData';
 import { errorText, notifyChanged, rpc } from '../../haki/api';
@@ -45,17 +47,17 @@ export default function HakiConfirmPage() {
             <div key={s.person_id} className="card pad confirm-item">
               <h2>{s.judul || '(tanpa judul)'}</h2>
               <p className="muted">
-                {s.jenis ? JENIS_LABEL[s.jenis] : '-'} · Diunggah oleh {s.pengunggah ?? '-'} · {fmtDate(s.created_at)}
+                {s.jenis ? `${JENIS_LABEL[s.jenis]}. ` : ''}Diunggah{s.pengunggah ? ` oleh ${s.pengunggah}` : ''} pada {fmtDate(s.created_at)}.
               </p>
               <p>
                 Tertulis sebagai <strong>{PERAN_LABEL[s.peran]}</strong>: “{s.nama_tertulis}”
               </p>
               <div className="form-actions">
                 <button onClick={() => answer(s, true)} disabled={busy !== null}>
-                  Ya, ini saya
+                  <IconLabel icon={Check}>Ya, ini saya</IconLabel>
                 </button>
                 <button className="danger" onClick={() => answer(s, false)} disabled={busy !== null}>
-                  Bukan saya
+                  <IconLabel icon={X}>Bukan saya</IconLabel>
                 </button>
               </div>
             </div>

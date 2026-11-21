@@ -1,8 +1,10 @@
+import { Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
-import ListPagination from '../../components/ListPagination';
+import DeleteDialog from '../../components/DeleteDialog';
 import ResponsiveList, { type ListColumn } from '../../components/ResponsiveList';
 import RecordFilters from '../../components/haki/RecordFilters';
 import StatusBadge from '../../components/haki/StatusBadge';
@@ -18,29 +20,23 @@ export default function HakiMinePage() {
   const profile = useProfile();
   const { pathname, search } = useLocation();
   const list = useRecordList('mine', PAGE);
-  const [error, setError] = useState('');
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<HkiListRow | null>(null);
   const operator = profile.role === 'operator';
 
   async function remove(row: HkiListRow) {
-    if (deleting || !confirm('Hapus dokumen “' + (row.judul ?? 'tanpa judul') + '”?')) return;
-    setDeleting(row.id);
-    setError('');
     try {
       await rpc('hki_delete_record', { p_record: row.id });
       list.retry();
     } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setDeleting(null);
+      throw new Error(errorText(e));
     }
   }
 
   const columns: ListColumn<HkiListRow>[] = [
-    { label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
+    { id: 'judul', label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
     { label: 'Status', render: (row) => <StatusBadge status={row.workflow_status} /> },
     ...(operator ? [{ label: 'Dosen', render: (row: HkiListRow) => row.owner_nama ?? '–' }] : []),
-    { label: 'Diperbarui', render: (row) => fmtDate(row.updated_at) },
+    { id: 'updated_at', label: 'Diperbarui', render: (row) => fmtDate(row.updated_at) },
     { label: 'Jenis', visibility: 'desktop', render: (row) => row.jenis ? JENIS_LABEL[row.jenis] : '–' },
     { label: 'Tahun', visibility: 'detail', render: (row) => row.tahun ?? '–' },
   ];
@@ -49,22 +45,20 @@ export default function HakiMinePage() {
     <div className="page">
       <header className="page-header">
         <div><h1>HKI Saya</h1><p className="muted">{operator ? 'Dokumen dosen dalam cakupan unit Anda.' : 'Dokumen milik Anda dan dokumen yang Anda konfirmasi sebagai pencipta.'}</p></div>
-        <Link to="/haki/unggah" className="button-link">Unggah sertifikat</Link>
+        <Link to="/haki/unggah" className="button-link"><IconLabel icon={Upload}>Unggah sertifikat</IconLabel></Link>
       </header>
-      <RecordFilters value={list.filters} units={list.units} master={list.master} total={list.loading || list.error ? null : list.total} showStatus statusChoices={MINE_TABS.filter((tab) => tab.key !== 'semua')} onChange={list.updateFilters} />
-      {error && <p className="error" role="alert">{error}</p>}
+      <RecordFilters value={list.filters} units={list.units} master={list.master} pager={list.pager} showStatus statusChoices={MINE_TABS.filter((tab) => tab.key !== 'semua')} onChange={list.updateFilters} />
       <AsyncState loading={list.loading} error={list.error} onRetry={list.retry} empty={!list.rows.length ? 'Tidak ada dokumen yang cocok.' : undefined} />
-      {!list.loading && !list.error && <>
-        <ResponsiveList
+      <ResponsiveList
           rows={list.rows}
           columns={columns}
           caption="Dokumen HKI"
+          list={list.pager} total={list.total} pending={list.loading} failed={!!list.error} order={list.order}
           detailActions={(row) => DELETABLE.includes(row.workflow_status) && (row.owner_dosen_id === profile.dosen_id || operator) ? (
-            <button className="danger" disabled={deleting !== null} onClick={() => void remove(row)}>Hapus</button>
+            <button className="danger" onClick={() => setDeleting(row)}><IconLabel icon={Trash2}>Hapus</IconLabel></button>
           ) : null}
-        />
-        <ListPagination total={list.total} pageSize={PAGE} showTotal={false} />
-      </>}
+      />
+      {deleting && <DeleteDialog name={deleting.judul || 'dokumen tanpa judul'} remove={() => remove(deleting)} onClose={() => setDeleting(null)} />}
     </div>
   );
 }

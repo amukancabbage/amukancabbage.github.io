@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useProfile } from '../auth';
+import AppIcon, { IconLabel } from '../components/AppIcon';
 import AsyncState from '../components/AsyncState';
 import StatusBadge from '../components/haki/StatusBadge';
 import { fmtDate } from '../haki/format';
 import type { HkiListRow, WorkflowStatus } from '../haki/types';
 import { supabase } from '../lib/supabase';
+import { routeIcons } from '../menu';
 import { roleLabel, type Role } from '../types';
 
 type Destination = { to: string; label: string; description: string };
@@ -65,6 +67,7 @@ type HomeRecord = Pick<HkiListRow, 'id' | 'judul' | 'workflow_status' | 'updated
 export default function RoleHomePage() {
   const { role, dosen_id, unit } = useProfile();
   const workspace = workspaces[role];
+  const primaryIcon = routeIcons.get(workspace.primary.to);
   const section = workspace.records;
   const [records, setRecords] = useState<HomeRecord[] | null>(null);
   const [count, setCount] = useState<number | null>(null);
@@ -100,21 +103,28 @@ export default function RoleHomePage() {
       <header className="page-header home-heading">
         <div>
           <h1>Beranda</h1>
-          <p className="muted">{roleLabel[role]}{unit?.nama ? ' · ' + unit.nama : ''}</p>
+          <p className="muted">{roleLabel[role]}{unit?.nama ? ` (${unit.nama})` : ''}</p>
         </div>
-        <Link className="button-link" to={workspace.primary.to}>{workspace.primary.label}</Link>
+        <Link className="button-link" to={workspace.primary.to}>
+          {primaryIcon ? <IconLabel icon={primaryIcon}>{workspace.primary.label}</IconLabel> : workspace.primary.label}
+        </Link>
       </header>
 
-      <div className={section ? 'home-body has-work' : 'home-body'}>
+      <div className={'home-body tw:grid tw:items-start tw:gap-6' + (section ? ' has-work' : '')}>
         {section && (
           <section className="card home-work">
             <div className="card-head">
-              <h2>{section.title}{count != null && !error && records !== null ? <span className="home-count">{count}</span> : null}</h2>
+              <div className="tw:flex tw:flex-wrap tw:items-baseline tw:gap-x-3">
+                <h2>{section.title}</h2>
+                {count != null && !error && records !== null && (
+                  <span className="muted small">{count.toLocaleString('id-ID')} dokumen</span>
+                )}
+              </div>
               {section.to !== workspace.primary.to && <Link to={section.to}>Lihat semua</Link>}
             </div>
             <AsyncState error={error} loading={records === null} empty={records?.length === 0 ? 'Belum ada dokumen.' : undefined} onRetry={() => setReload((value) => value + 1)} />
             {records && records.length > 0 && (
-              <ul className="home-records">
+              <ul className="home-records tw:m-0 tw:list-none tw:p-0">
                 {records.map((record) => {
                   const submittedAt = role === 'validator' ? record.submitted_at : null;
                   return (
@@ -130,15 +140,23 @@ export default function RoleHomePage() {
           </section>
         )}
         <section aria-labelledby="home-access-title">
-          <h2 id="home-access-title">Akses cepat</h2>
-          <div className="home-links">
-            {workspace.links.map((link) => (
-              <Link className="card home-link" key={link.to} to={link.to}>
-                <span className="home-link-label">{link.label} <span aria-hidden="true">›</span></span>
-                <span className="muted">{link.description}</span>
-              </Link>
-            ))}
-          </div>
+          <h2 id="home-access-title">{role === 'admin' ? 'Pengelolaan sistem' : 'Akses cepat'}</h2>
+          <ul className="home-links tw:m-0 tw:grid tw:list-none tw:p-0">
+            {workspace.links.map((link) => {
+              const icon = routeIcons.get(link.to);
+              return (
+                <li className="tw:min-w-0 tw:bg-surface" key={link.to}>
+                  <Link className="home-link tw:flex tw:items-start tw:gap-3" to={link.to}>
+                    {icon && <AppIcon icon={icon} className="home-link-icon tw:mt-1" />}
+                    <span className="tw:min-w-0 tw:flex-1">
+                      <span className="home-link-label tw:block">{link.label}</span>
+                      <span className="muted small tw:block">{link.description}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       </div>
     </div>

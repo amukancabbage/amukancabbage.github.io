@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { readPage } from '../lib/pagination';
+import { Plus, Save, Search, SquarePen, Trash2 } from 'lucide-react';
+import { useEffect, useEffectEvent, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { readListPage, readListSort, useListParams, type ListSorts } from '../lib/pagination';
+import { contains, loadChoiceLabels, searchChoices, textCondition, type Choice, type ChoiceSource } from '../lib/search';
 import { supabase } from '../lib/supabase';
+import AppIcon, { IconLabel } from './AppIcon';
 import AsyncState from './AsyncState';
+import DeleteDialog from './DeleteDialog';
 import Dialog from './Dialog';
 import { useDraftGuard, useUnsavedDraft } from './DraftGuard';
+import ListFilter, { validFilter, type FilterField } from './ListFilter';
+import ListSort from './ListSort';
 import ResponsiveList, { type ListColumn } from './ResponsiveList';
+import SearchSelect from './SearchSelect';
 
 export type Option = { value: number | string; label: string };
 export type RowValues = Record<string, string>;
@@ -19,7 +25,7 @@ export type Field<T> = {
   // lebar penuh di form
   wide?: boolean;
   // untuk 'select' / 'multiselect': pilihan diambil dari tabel lain
-  source?: { table: string; select: string; order: string; label: (row: any) => string };
+  source?: ChoiceSource;
   // untuk 'select': pilihan tetap (tidak dari tabel)
   options?: Option[];
   // menyaring pilihan berdasarkan isi form, mis. ketua hanya dari anggota tim
@@ -38,9 +44,6 @@ export type Field<T> = {
   getValues?: (row: T) => (number | string)[];
   // untuk 'multiselect': nilai yang selalu tercentang dan tidak bisa dihapus
   lockedValues?: string[];
-  // untuk 'multiselect': 'checklist' (default) = daftar centang;
-  // 'list' = combobox untuk menambah + listbox berisi yang dipilih, dengan tombol Hapus
-  picker?: 'checklist' | 'list';
   // untuk 'rows': daftar isian per baris, disimpan sebagai array objek di kolom jsonb
   // contoh: [{ name: 'npm', label: 'NPM' }, { name: 'nama', label: 'Nama', required: true }]
   rowFields?: { name: string; label: string; required?: boolean }[];
@@ -70,12 +73,13 @@ type Props<T> = {
   fixedValues?: Record<string, unknown>;
   // pemeriksaan sebelum menyimpan; kembalikan pesan error atau null
   validate?: (form: FormValues) => string | null;
-  // jumlah baris per halaman; jika diisi, data diambil per halaman dari server
+  // jumlah baris bawaan per halaman
   pageSize?: number;
   // kolom teks yang dicari (ilike); jika diisi, muncul kotak pencarian di atas tabel
   searchColumns?: string[];
-  // syarat pencarian tambahan dalam format filter PostgREST, mis. 'dosen_id.in.(1,2)'
-  searchExtra?: (keyword: string) => Promise<string[]>;
+  // embed terpisah untuk pencarian supaya data relasi yang ditampilkan tetap lengkap
+  searchRelations?: { select: string; column: string; match: string }[];
+  listFilter?: FilterField;
   searchPlaceholder?: string;
 };
 
@@ -96,6 +100,7 @@ function errorMessage(error: { code?: string; message: string }) {
 }
 
 const allow = () => true;
+const yearFilter: FilterField = { kind: 'year', param: 'tahun', column: 'tahun', label: 'Tahun' };
 
 export default function CrudPage<T extends { id: number | string }>({
   title,
@@ -110,108 +115,133 @@ export default function CrudPage<T extends { id: number | string }>({
   canDelete = canEdit,
   fixedValues,
   validate,
-  pageSize,
+  pageSize: defaultSize = 10,
   searchColumns,
-  searchExtra,
+  searchRelations = [],
+  listFilter,
   searchPlaceholder = 'Cari...',
 }: Props<T>) {
   const [rows, setRows] = useState<T[]>([]);
-  const [options, setOptions] = useState<Record<string, Option[]>>({});
+  const [labels, setLabels] = useState<Record<string, Record<string, Choice>>>({});
   const [form, setForm] = useState(() => emptyForm(fields));
   const [editId, setEditId] = useState<T['id'] | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [optionsError, setOptionsError] = useState('');
   const [optionsLoading, setOptionsLoading] = useState(false);
+  const optionRequest = useRef<AbortController | null>(null);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const initial = useRef(JSON.stringify(form));
   const inFlight = useRef<Promise<boolean> | null>(null);
   const { requestLeave } = useDraftGuard();
-  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState<Record<string, string>>({});
-  // picker 'list': pilihan di combobox dan baris yang disorot di listbox, per field
-  const [pick, setPick] = useState<Record<string, string>>({});
-  const [highlight, setHighlight] = useState<Record<string, string[]>>({});
-  const [params, setParams] = useSearchParams();
-  const page = readPage(params);
+  const [deleting, setDeleting] = useState<T | null>(null);
+  const list = useListParams(defaultSize);
+  const { params, page, pageSize, update } = list;
   const appliedKeyword = params.get('q') ?? '';
   const [total, setTotal] = useState(0);
   const [keyword, setKeyword] = useState(appliedKeyword);
   const [saved, setSaved] = useState('');
-  // nomor permintaan terakhir; jawaban dari permintaan lama diabaikan
-  const requestId = useRef(0);
-
+  const key = table + ':' + params.toString();
+  const loading = loadedKey !== key;
   const formFields = fields.filter((f) => !f.hideInForm);
+  const listedFields = fields.filter((field) => !field.hideInTable);
+  const primary = listedFields.find((field) => field.name.startsWith('judul')) ?? listedFields[0];
+  const columnsToSearch = searchColumns ?? [primary.name];
+  const hasYear = fields.some((field) => field.name === 'tahun');
+  const filter = listFilter ?? (hasYear ? yearFilter : undefined);
+  const filterValue = filter ? params.get(filter.param) ?? '' : '';
+  const sorts: ListSorts = {
+    [primary.name.startsWith('judul') ? 'judul' : primary.name]: { column: primary.name, label: primary.label, ascending: true },
+    ...(hasYear ? { tahun: { column: 'tahun', label: 'Tahun', ascending: false, chronological: true } } : {}),
+  };
+  const selectedOrder = readListSort(params, sorts);
+  const orders = selectedOrder ? [selectedOrder] : Array.isArray(order) ? order : [order];
 
-  function setPage(value: number) {
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      if (value > 1) next.set('page', String(value));
-      else next.delete('page');
-      return next;
-    });
-  }
-
-  async function loadRows(keepRows = false) {
-    const current = ++requestId.current;
-    if (!keepRows) setLoading(true);
-    let query = supabase.from(table).select(select, { count: pageSize ? 'exact' : undefined });
-    if (appliedKeyword && searchColumns) {
-      // tanda kutip & backslash dibuang agar tidak merusak sintaks filter .or()
-      const q = appliedKeyword.replace(/["\\]/g, '');
-      const conditions = [
-        ...searchColumns.map((c) => `${c}.ilike."%${q}%"`),
-        ...((await searchExtra?.(q)) ?? []),
-      ];
-      query = query.or(conditions.join(','));
+  const loadRows = useEffectEvent(async (signal: AbortSignal) => {
+    function build(head = false) {
+      const q = appliedKeyword.trim();
+      const relations = q ? searchRelations : [];
+      const projection = [head ? 'id' : select, ...relations.map((relation) => relation.select)].join(',');
+      let query = supabase.from(table).select(projection, { count: 'exact', head });
+      if (filter && validFilter(filter, filterValue)) query = query.eq(filter.column, filterValue);
+      if (q) {
+        for (const relation of relations) query = query.ilike(relation.column, contains(q));
+        const conditions = [...columnsToSearch.map((column) => textCondition(column, q)), ...relations.map(({ match }) => match + '.not.is.null')];
+        if (hasYear && /^\d{4}$/.test(q)) conditions.push('tahun.eq.' + q);
+        query = query.or(conditions.join(','));
+      }
+      for (const item of orders) query = query.order(item.column, { ascending: item.ascending ?? true, nullsFirst: false });
+      if (!orders.some((item) => item.column === 'id')) query = query.order('id');
+      return query.abortSignal(signal);
     }
-    for (const o of Array.isArray(order) ? order : [order]) {
-      query = query.order(o.column, { ascending: o.ascending ?? true });
-    }
-    if (pageSize) query = query.range((page - 1) * pageSize, page * pageSize - 1);
-    const { data, error, count } = await query;
-    if (current !== requestId.current) return;
-
-    // halaman melewati data terakhir (mis. setelah hapus): mundur satu halaman.
-    // Supabase mengembalikan error PGRST103 untuk range di luar jumlah data.
-    if (pageSize && page > 1 && (error?.code === 'PGRST103' || data?.length === 0)) {
-      setPage(page - 1);
-      return;
-    }
-    setError(error ? errorMessage(error) : null);
-    setRows((data as unknown as T[] | null) ?? []);
-    setTotal(count ?? data?.length ?? 0);
-    setLoading(false);
-  }
-
-  async function loadOptions() {
-    setOptionsLoading(true);
-    setOptionsError('');
     try {
-      const entries = await Promise.all(
-      formFields
-        .filter((f) => f.source)
-        .map(async (f) => {
-          const s = f.source!;
-          const { data, error } = await supabase.from(s.table).select(s.select).order(s.order);
-          if (error) throw error;
-          const opts = (data ?? []).map((row: any) => ({ value: row.id, label: s.label(row) }));
-          return [f.name, opts] as const;
-        }),
-    );
-      setOptions(Object.fromEntries(entries));
+      const result = await readListPage<T>(page, pageSize,
+        (from, to) => build().range(from, to).overrideTypes<T[], { merge: false }>(), () => build(true));
+      if (signal.aborted) return;
+      setTotal(result.total);
+      if (result.page !== page) {
+        setLoadedKey(null);
+        list.setPage(result.page, true);
+        return;
+      }
+      setRows(result.rows);
+      setError(null);
+    } catch (reason) {
+      if (signal.aborted) return;
+      setError(reason && typeof reason === 'object' && 'message' in reason
+        ? errorMessage(reason as { message: string; code?: string }) : 'Data gagal dimuat.');
+    }
+    setLoadedKey(key);
+  });
+
+  async function loadOptions(values: FormValues) {
+    optionRequest.current?.abort();
+    const controller = new AbortController();
+    optionRequest.current = controller;
+    const sources = new Map<string, { source: ChoiceSource; ids: Set<string> }>();
+    for (const field of formFields) {
+      if (!field.source) continue;
+      const { table } = field.source;
+      const value = values[field.name];
+      const ids = (Array.isArray(value) ? value : [value]).filter((id): id is string => typeof id === 'string' && /^\d+$/.test(id));
+      if (!ids.length) continue;
+      const entry = sources.get(table) ?? { source: field.source, ids: new Set<string>() };
+      ids.forEach((id) => entry.ids.add(id));
+      sources.set(table, entry);
+    }
+    setOptionsError('');
+    if (!sources.size) { setOptionsLoading(false); return; }
+    setOptionsLoading(true);
+    try {
+      const entries = await Promise.all([...sources].map(async ([table, { source, ids }]) =>
+        [table, await loadChoiceLabels(source, [...ids], controller.signal)] as const));
+      if (controller.signal.aborted) return;
+      setLabels((current) => {
+        const next = { ...current };
+        for (const [table, items] of entries) {
+          const resolved = Object.fromEntries(items.map((item) => [item.value, item]));
+          next[table] = { ...resolved, ...current[table] };
+        }
+        return next;
+      });
     } catch {
-      setOptionsError('Pilihan formulir gagal dimuat.');
+      if (!controller.signal.aborted) setOptionsError('Label pilihan tersimpan gagal dimuat.');
     } finally {
-      setOptionsLoading(false);
+      if (!controller.signal.aborted) setOptionsLoading(false);
     }
   }
 
   useEffect(() => {
-    loadRows();
-  }, [page, appliedKeyword]);
+    const controller = new AbortController();
+    void loadRows(controller.signal);
+    return () => controller.abort();
+  }, [key, reload]);
+
+  useEffect(() => () => optionRequest.current?.abort(), []);
 
   // pencarian dijalankan 400 ms setelah berhenti mengetik, dimulai dari halaman 1
   useEffect(() => { setKeyword(appliedKeyword); }, [appliedKeyword]);
@@ -220,20 +250,10 @@ export default function CrudPage<T extends { id: number | string }>({
     const value = keyword.trim();
     if (value === appliedKeyword) return;
     const timer = setTimeout(() => {
-      setParams((current) => {
-        const next = new URLSearchParams(current);
-        if (value) next.set('q', value);
-        else next.delete('q');
-        next.delete('page');
-        return next;
-      }, { replace: true });
+      update({ q: value }, { replace: true });
     }, 400);
     return () => clearTimeout(timer);
-  }, [keyword, appliedKeyword, setParams]);
-
-  useEffect(() => {
-    if (showForm) void loadOptions();
-  }, [showForm]);
+  }, [keyword, appliedKeyword, update]);
 
   // baris yang semua isiannya kosong tidak disimpan
   function toRows(f: Field<T>, rows: RowValues[]) {
@@ -261,8 +281,12 @@ export default function CrudPage<T extends { id: number | string }>({
 
   function save() {
     if (inFlight.current) return inFlight.current;
-    if (optionsLoading || optionsError) return Promise.resolve(false);
     if (!formRef.current?.reportValidity()) return Promise.resolve(fail('Periksa isian wajib dan format nilai.'));
+    const missing = formFields.find((field) => field.source && field.required && isShown(field) && !form[field.name]);
+    if (missing) {
+      document.getElementById(missing.name)?.focus();
+      return Promise.resolve(fail('Pilih ' + missing.label.toLocaleLowerCase('id') + ' dari daftar.'));
+    }
     setSaving(true);
     setFormError('');
     inFlight.current = saveForm()
@@ -338,7 +362,7 @@ export default function CrudPage<T extends { id: number | string }>({
 
     setSaved('Data tersimpan.');
     resetForm();
-    void loadRows(true);
+    setReload((value) => value + 1);
     return true;
   }
 
@@ -347,10 +371,9 @@ export default function CrudPage<T extends { id: number | string }>({
     initial.current = JSON.stringify(values);
     setEditId(id);
     setFormError('');
-    setPick({});
-    setHighlight({});
-    setSearch({});
+    setLabels({});
     setShowForm(true);
+    void loadOptions(values);
   }
 
   function handleEdit(row: T) {
@@ -372,13 +395,13 @@ export default function CrudPage<T extends { id: number | string }>({
   }
 
   async function handleDelete(id: T['id']) {
-    if (!confirm(`Hapus data ${title.toLowerCase()} ini?`)) return;
     const { error } = await supabase.from(table).delete().eq('id', id);
-    if (error) setError(errorMessage(error));
-    else loadRows();
+    if (error) throw new Error(errorMessage(error));
+    setReload((value) => value + 1);
   }
 
   function resetForm() {
+    optionRequest.current?.abort();
     setShowForm(false);
     setEditId(null);
     setFormError('');
@@ -390,6 +413,12 @@ export default function CrudPage<T extends { id: number | string }>({
     save,
     discard: resetForm,
   });
+
+  function remember(source: ChoiceSource, choice: Choice) {
+    setLabels((current) => ({
+      ...current, [source.table]: { ...current[source.table], [choice.value]: choice },
+    }));
+  }
 
   function renderInput(f: Field<T>) {
     if (f.type === 'rows') {
@@ -419,123 +448,77 @@ export default function CrudPage<T extends { id: number | string }>({
                 aria-label={`Hapus baris ${i + 1}`}
                 onClick={() => setList(list.filter((_, k) => k !== i))}
               >
-                ✕
+                <AppIcon icon={Trash2} />
               </button>
             </div>
           ))}
           <button type="button" className="secondary" onClick={() => setList([...list, blank()])}>
-            + Tambah {f.label}
+            <IconLabel icon={Plus}>Tambah {f.label}</IconLabel>
           </button>
         </div>
       );
     }
 
-    if (f.type === 'multiselect' && f.picker === 'list') {
+    if (f.type === 'multiselect' && f.source) {
+      const source = f.source;
       const selected = form[f.name] as string[];
-      const locked = f.lockedValues ?? [];
-      const opts = options[f.name] ?? [];
-      const labelOf = (v: string) => opts.find((o) => String(o.value) === v)?.label ?? v;
-      const marked = (highlight[f.name] ?? []).filter((v) => selected.includes(v) && !locked.includes(v));
-      const add = () => {
-        const v = pick[f.name];
-        if (!v || selected.includes(v)) return;
-        setForm({ ...form, [f.name]: [...selected, v] });
-        setPick({ ...pick, [f.name]: '' });
-      };
-      const remove = () => {
-        setForm({ ...form, [f.name]: selected.filter((v) => !marked.includes(v)) });
-        setHighlight({ ...highlight, [f.name]: [] });
-      };
+      const labelFor = (value: string) => labels[source.table]?.[value]?.label ?? 'Dosen ' + value;
+      function remove(value: string) {
+        const next = { ...form, [f.name]: selected.filter((id) => id !== value) };
+        const leader = f.junction?.exclude;
+        if (leader && next[leader] === value) {
+          next[leader] = '';
+          setFormError('Pilih kembali ketua dari anggota tim atau gunakan opsi ketua luar.');
+        }
+        setForm(next);
+        document.getElementById('add-' + f.name)?.focus();
+      }
       return (
         <div className="picker">
-          <div className="picker-add">
-            <select
-              aria-label={`Pilih ${f.label.toLowerCase()}`}
-              value={pick[f.name] ?? ''}
-              onChange={(e) => setPick({ ...pick, [f.name]: e.target.value })}
-            >
-              <option value="">-- Pilih dosen untuk ditambahkan --</option>
-              {opts
-                .filter((o) => !selected.includes(String(o.value)))
-                .map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-            </select>
-            <button type="button" className="secondary" disabled={!pick[f.name]} onClick={add}>
-              Tambah
-            </button>
-          </div>
-          <select
-            multiple
-            aria-label={f.label}
-            className="picker-list"
-            size={Math.min(Math.max(selected.length, 4), 10)}
-            value={marked}
-            onChange={(e) =>
-              setHighlight({
-                ...highlight,
-                [f.name]: Array.from(e.target.selectedOptions, (o) => o.value),
-              })
-            }
-          >
-            {selected.map((v) => (
-              <option key={v} value={v} disabled={locked.includes(v)}>
-                {labelOf(v)}
-                {locked.includes(v) ? ' (Anda)' : ''}
-              </option>
-            ))}
-          </select>
-          <div className="picker-actions">
-            <span className="muted">{selected.length} dipilih</span>
-            <button type="button" className="danger" disabled={marked.length === 0} onClick={remove}>
-              Hapus{marked.length > 1 ? ` (${marked.length})` : ''}
-            </button>
-          </div>
+          <SearchSelect id={'add-' + f.name} label={'Cari dosen untuk ' + f.label.toLocaleLowerCase('id')}
+            placeholder="Ketik nama dosen" disabled={saving} omit={selected}
+            lookup={(term, signal) => searchChoices(source, term, signal)}
+            onPick={(item) => {
+              if (!item || selected.includes(item.value)) return;
+              remember(source, item);
+              setForm({ ...form, [f.name]: [...selected, item.value] });
+            }} />
+          {selected.length > 0 && (
+            <ul className="member-list" aria-label={f.label + ' terpilih'} role="list">
+              {selected.map((value) => (
+                <li key={value}>
+                  <span>{labelFor(value)}</span>
+                  {f.lockedValues?.includes(value)
+                    ? <span className="member-locked">Anda</span>
+                    : <button type="button" className="secondary" aria-label={'Hapus ' + labelFor(value)}
+                        onClick={() => remove(value)}><AppIcon icon={Trash2} /></button>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <span className="muted small" aria-live="polite">{selected.length} anggota dipilih</span>
         </div>
       );
     }
 
-    if (f.type === 'multiselect') {
-      const selected = form[f.name] as string[];
-      const locked = f.lockedValues ?? [];
-      const keyword = (search[f.name] ?? '').toLowerCase();
-      const toggle = (v: string) =>
-        setForm({
-          ...form,
-          [f.name]: selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v],
-        });
-      return (
-        <div className="checklist-wrap">
-          <input
-            type="search"
-            aria-label={`Cari ${f.label.toLowerCase()}`}
-            placeholder={`Cari ${f.label.toLowerCase()}…`}
-            value={search[f.name] ?? ''}
-            onChange={(e) => setSearch({ ...search, [f.name]: e.target.value })}
-          />
-          <div className="checklist">
-            {(options[f.name] ?? [])
-              // yang sudah dipilih tetap tampil walaupun tidak cocok dengan pencarian
-              .filter(
-                (o) =>
-                  o.label.toLowerCase().includes(keyword) || selected.includes(String(o.value)),
-              )
-              .map((o) => (
-                <label key={o.value}>
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(String(o.value))}
-                    disabled={locked.includes(String(o.value))}
-                    onChange={() => toggle(String(o.value))}
-                  />
-                  {o.label}
-                </label>
-              ))}
-          </div>
-        </div>
-      );
+    if (f.type === 'select' && f.source) {
+      const source = f.source;
+      const known = labels[source.table] ?? {};
+      const extra = (f.extraOptions ?? []).map((item) => ({ ...item, value: String(item.value) }));
+      const options: Choice[] = f.filterOptions
+        ? [...f.filterOptions(Object.values(known), form).map((item) => ({ ...item, value: String(item.value) })), ...extra]
+        : extra;
+      const value = form[f.name] as string;
+      const selected = value ? (known[value] ?? options.find((item) => item.value === value) ?? { value, label: 'Pilihan tersimpan ' + value }) : null;
+      return <SearchSelect id={f.name} label={f.label} selected={selected} items={options} disabled={saving}
+        placeholder={f.filterOptions ? 'Pilih ' + f.label.toLocaleLowerCase('id') : 'Cari ' + f.label.toLocaleLowerCase('id')}
+        lookup={f.filterOptions ? undefined : (term, signal) => searchChoices(source, term, signal)}
+        clearable={!f.required} required={f.required}
+        onPick={(item) => {
+          if (item) remember(source, item);
+          setForm({ ...form, [f.name]: item?.value ?? '' });
+          setFormError('');
+        }} />;
     }
 
     const common = {
@@ -549,12 +532,7 @@ export default function CrudPage<T extends { id: number | string }>({
       return (
         <select {...common}>
           <option value="">-- Pilih {f.label} --</option>
-          {[
-            ...(f.filterOptions
-              ? f.filterOptions(f.options ?? options[f.name] ?? [], form)
-              : (f.options ?? options[f.name] ?? [])),
-            ...(f.extraOptions ?? []),
-          ].map((o) => (
+          {(f.options ?? []).map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -564,14 +542,13 @@ export default function CrudPage<T extends { id: number | string }>({
     return <input type={f.type ?? 'text'} {...common} />;
   }
 
-  const listedFields = fields.filter((field) => !field.hideInTable);
-  const primary = listedFields.find((field) => field.name.startsWith('judul')) ?? listedFields[0];
   const displayOrder = listColumns ? [...listColumns.summary, listColumns.extra] : [primary?.name];
   const orderedFields = [
     ...displayOrder.flatMap((name) => listedFields.filter((field) => field.name === name)),
     ...listedFields.filter((field) => !displayOrder.includes(field.name)),
   ];
   const columns = orderedFields.map((field, index): ListColumn<T> => ({
+    id: field.name === 'id' ? undefined : field.name,
     label: field.label,
     render: (row) => field.render ? field.render(row) : String(row[field.name] ?? '–'),
     visibility: listColumns?.summary.includes(field.name) || (!listColumns && index < 2) ? 'summary'
@@ -587,46 +564,46 @@ export default function CrudPage<T extends { id: number | string }>({
         </div>
         {canCreate && (
           <button type="button" onClick={() => openForm(emptyForm(fields), null)}>
-            Tambah {title.toLowerCase()}
+            <IconLabel icon={Plus}>Tambah {title.toLowerCase()}</IconLabel>
           </button>
         )}
       </header>
 
-      {searchColumns && (
-        <div className="table-toolbar">
+      <div className="table-toolbar list-toolbar">
           <label className="field search-field">
-            <span>Pencarian</span>
+            <IconLabel icon={Search}>Pencarian</IconLabel>
             <input type="search" className="search-input" placeholder={searchPlaceholder} value={keyword} onChange={(event) => setKeyword(event.target.value)} />
           </label>
-          {!loading && !error && <span className="muted small">{total} hasil</span>}
-        </div>
-      )}
+          {filter && <ListFilter field={filter} value={validFilter(filter, filterValue) ? filterValue : ''}
+            onChange={(value) => update({ [filter.param]: value })} />}
+          <ListSort list={list} choices={sorts} />
+      </div>
       {saved && <p className="notice" role="status">{saved}</p>}
       <AsyncState
-        error={error}
+        error={loading ? null : error}
         loading={loading}
-        empty={!rows.length ? (appliedKeyword ? 'Tidak ada hasil untuk pencarian ini.' : 'Belum ada data.') : undefined}
-        onRetry={() => void loadRows()}
+        empty={!rows.length ? (appliedKeyword || filterValue ? 'Tidak ada hasil untuk filter ini.' : 'Belum ada data.') : undefined}
+        onRetry={() => { setLoadedKey(null); setReload((value) => value + 1); }}
       />
 
-      {!loading && (
-        <ResponsiveList
+      <ResponsiveList
           rows={rows}
           columns={columns}
           caption={title}
+          list={list} total={total} order={orders[0]} pending={loading} failed={!!error}
           actions={rows.some(canEdit) ? (row) => canEdit(row) && (
-            <button type="button" className="secondary" onClick={() => handleEdit(row)}>Ubah</button>
+            <button type="button" className="secondary" onClick={() => handleEdit(row)}><IconLabel icon={SquarePen}>Ubah</IconLabel></button>
           ) : undefined}
           detailActions={(row) => canDelete(row) && (
-            <button type="button" className="danger" onClick={() => void handleDelete(row.id)}>Hapus</button>
+            <button type="button" className="danger" onClick={() => setDeleting(row)}><IconLabel icon={Trash2}>Hapus</IconLabel></button>
           )}
-        />
-      )}
-      {pageSize && total > pageSize && <Pagination page={page} pageSize={pageSize} total={total} onChange={setPage} />}
+      />
+      {deleting && <DeleteDialog name={String(deleting[primary.name] ?? title.toLocaleLowerCase('id'))}
+        remove={() => handleDelete(deleting.id)} onClose={() => setDeleting(null)} />}
 
       {showForm && (
         <Dialog title={(editId === null ? 'Tambah ' : 'Ubah ') + title.toLowerCase()} className="editor-dialog" onClose={() => requestLeave(resetForm)}>
-          <AsyncState loading={optionsLoading} error={optionsError} onRetry={() => void loadOptions()} />
+          <AsyncState loading={optionsLoading} error={optionsError} onRetry={() => void loadOptions(form)} />
           <form ref={formRef} onSubmit={handleSubmit} aria-busy={saving}>
             <fieldset className="form editor-form" disabled={saving}>
               {formFields.filter(isShown).map((f) => {
@@ -634,11 +611,11 @@ export default function CrudPage<T extends { id: number | string }>({
                 const wide = f.wide ? ' wide' : '';
                 return f.type === 'rows' || f.type === 'multiselect'
                   ? <div key={f.name} className={'field' + wide} role="group" aria-label={f.label}>{caption}{renderInput(f)}</div>
-                  : <label key={f.name} htmlFor={f.name} className={'field' + wide}>{caption}{renderInput(f)}</label>;
+                  : <div key={f.name} className={'field' + wide}><label htmlFor={f.name}>{caption}</label>{renderInput(f)}</div>;
               })}
               {formError && <p className="error wide" role="alert">{formError}</p>}
               <div className="form-actions wrap">
-                <button type="submit" disabled={saving || optionsLoading || !!optionsError}>{saving ? 'Menyimpan…' : 'Simpan'}</button>
+                <button type="submit" disabled={saving}><IconLabel icon={Save}>{saving ? 'Menyimpan…' : 'Simpan'}</IconLabel></button>
                 <button type="button" className="secondary" onClick={() => requestLeave(resetForm)} disabled={saving}>Batal</button>
               </div>
             </fieldset>
@@ -646,54 +623,5 @@ export default function CrudPage<T extends { id: number | string }>({
         </Dialog>
       )}
     </section>
-  );
-}
-
-function Pagination({
-  page,
-  pageSize,
-  total,
-  onChange,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  onChange: (page: number) => void;
-}) {
-  const lastPage = Math.max(1, Math.ceil(total / pageSize));
-  // tampilkan paling banyak 5 nomor halaman di sekitar halaman aktif
-  const start = Math.max(1, Math.min(page - 2, lastPage - 4));
-  const pages = Array.from({ length: Math.min(5, lastPage) }, (_, i) => start + i);
-
-  return (
-    <div className="pagination">
-      <span>
-        Menampilkan {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} dari {total}
-      </span>
-      <div className="pagination-buttons">
-        <button className="secondary" disabled={page === 1} onClick={() => onChange(1)} aria-label="Halaman pertama">
-          «
-        </button>
-        <button className="secondary" disabled={page === 1} onClick={() => onChange(page - 1)} aria-label="Halaman sebelumnya">
-          ‹
-        </button>
-        {pages.map((p) => (
-          <button
-            key={p}
-            className={p === page ? undefined : 'secondary'}
-            aria-current={p === page ? 'page' : undefined}
-            onClick={() => onChange(p)}
-          >
-            {p}
-          </button>
-        ))}
-        <button className="secondary" disabled={page === lastPage} onClick={() => onChange(page + 1)} aria-label="Halaman berikutnya">
-          ›
-        </button>
-        <button className="secondary" disabled={page === lastPage} onClick={() => onChange(lastPage)} aria-label="Halaman terakhir">
-          »
-        </button>
-      </div>
-    </div>
   );
 }

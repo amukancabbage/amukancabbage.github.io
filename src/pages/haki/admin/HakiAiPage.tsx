@@ -1,4 +1,6 @@
+import { Save } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { IconLabel } from '../../../components/AppIcon';
 import AsyncState from '../../../components/AsyncState';
 import { useUnsavedDraft } from '../../../components/DraftGuard';
 import { useRemoteData } from '../../../lib/useRemoteData';
@@ -110,7 +112,7 @@ export default function HakiAiPage() {
         ))}
         <div className="form-actions">
           <button onClick={() => void save()} disabled={busy || !dirty}>
-            Simpan
+            <IconLabel icon={Save}>Simpan</IconLabel>
           </button>
         </div>
       </div>}

@@ -1,3 +1,8 @@
+import {
+  Archive, Bell, BookOpen, BriefcaseBusiness, Building2, ChartColumn, CircleHelp, ClipboardCheck, ClipboardList,
+  Cog, Cpu, Database, FileCheck, FileText, FlaskConical, FolderOpen, GraduationCap, Handshake, House, IdCard,
+  LayoutDashboard, ListTree, Tags, Upload, UserRoundCheck, Users, type LucideIcon,
+} from 'lucide-react';
 import { lazy, type ReactNode } from 'react';
 import type { Role } from './types';
 
@@ -31,8 +36,8 @@ const HakiRecordPage = lazy(() => import('./pages/haki/HakiRecordPage'));
 const HakiUploadPage = lazy(() => import('./pages/haki/HakiUploadPage'));
 
 // `hidden`: rute terdaftar tetapi tidak tampil di sidebar (mis. detail dokumen)
-export type MenuItem = { path: string; label: string; element: ReactNode; roles: Role[]; hidden?: boolean };
-export type MenuGroup = { title: string; items: MenuItem[] };
+export type MenuItem = { path: string; label: string; icon: LucideIcon; element: ReactNode; roles: Role[]; hidden?: boolean };
+export type MenuGroup = { title: string; icon: LucideIcon; items: MenuItem[] };
 
 const semua: Role[] = ['admin', 'dosen', 'pemantau', 'validator', 'operator'];
 const admin: Role[] = ['admin'];
@@ -45,68 +50,77 @@ const validator: Role[] = ['validator'];
 export const menu: MenuGroup[] = [
   {
     title: 'Utama',
+    icon: House,
     items: [
-      { path: '/beranda', label: 'Beranda', element: <RoleHomePage />, roles: semua },
+      { path: '/beranda', label: 'Beranda', icon: House, element: <RoleHomePage />, roles: semua },
     ],
   },
   {
     title: 'Akademik',
+    icon: GraduationCap,
     items: [
-      { path: '/rekap-akademik', label: 'Rekap Akademik', element: <BerandaPage />, roles: semua },
-      { path: '/penelitian', label: 'Data Penelitian', element: <PenelitianPage />, roles: semua },
-      { path: '/pengabdian', label: 'Data Pengabdian', element: <PengabdianPage />, roles: semua },
-      { path: '/artikel-mahasiswa', label: 'Artikel Mahasiswa', element: <ArtikelMahasiswaPage />, roles: semua },
+      { path: '/rekap-akademik', label: 'Rekap Akademik', icon: ChartColumn, element: <BerandaPage />, roles: semua },
+      { path: '/penelitian', label: 'Data Penelitian', icon: FlaskConical, element: <PenelitianPage />, roles: semua },
+      { path: '/pengabdian', label: 'Data Pengabdian', icon: Handshake, element: <PengabdianPage />, roles: semua },
+      { path: '/artikel-mahasiswa', label: 'Artikel Mahasiswa', icon: BookOpen, element: <ArtikelMahasiswaPage />, roles: semua },
     ],
   },
   {
     title: 'HKI',
+    icon: FileCheck,
     items: [
-      { path: '/haki', label: 'Ringkasan HKI', element: <HakiBerandaPage />, roles: pengunggah },
-      { path: '/haki/unggah', label: 'Unggah Sertifikat', element: <HakiUploadPage />, roles: pengunggah },
-      { path: '/haki/saya', label: 'HKI Saya', element: <HakiMinePage />, roles: pengunggah },
-      { path: '/haki/konfirmasi', label: 'Konfirmasi Pencipta', element: <HakiConfirmPage />, roles: dosen },
-      { path: '/haki/antrean', label: 'Antrean Validasi', element: <HakiQueuePage />, roles: validator },
+      { path: '/haki', label: 'Ringkasan HKI', icon: LayoutDashboard, element: <HakiBerandaPage />, roles: pengunggah },
+      { path: '/haki/unggah', label: 'Unggah Sertifikat', icon: Upload, element: <HakiUploadPage />, roles: pengunggah },
+      { path: '/haki/saya', label: 'HKI Saya', icon: FolderOpen, element: <HakiMinePage />, roles: pengunggah },
+      { path: '/haki/konfirmasi', label: 'Konfirmasi Pencipta', icon: UserRoundCheck, element: <HakiConfirmPage />, roles: dosen },
+      { path: '/haki/antrean', label: 'Antrean Validasi', icon: ClipboardCheck, element: <HakiQueuePage />, roles: validator },
       {
         path: '/haki/arsip',
         label: 'Arsip HKI',
+        icon: Archive,
         element: <HakiArchivePage />,
         roles: ['dosen', 'operator', 'validator', 'pemantau'],
       },
       {
         path: '/haki/dashboard',
         label: 'Dashboard HKI',
+        icon: ChartColumn,
         element: <HakiDashboardPage />,
         roles: ['validator', 'pemantau'],
       },
-      { path: '/haki/portofolio', label: 'Portofolio', element: <HakiPortfolioPage />, roles: dosen },
-      { path: '/haki/profil', label: 'Alias Nama', element: <HakiProfilePage />, roles: dosen },
-      { path: '/haki/notifikasi', label: 'Notifikasi', element: <HakiNotificationsPage />, roles: semua },
-      { path: '/haki/bantuan', label: 'Bantuan HKI', element: <HakiHelpPage />, roles: semua },
-      { path: '/haki/dokumen/:id', label: 'Dokumen HKI', element: <HakiRecordPage />, roles: semua, hidden: true },
+      { path: '/haki/portofolio', label: 'Portofolio', icon: BriefcaseBusiness, element: <HakiPortfolioPage />, roles: dosen },
+      { path: '/haki/profil', label: 'Alias Nama', icon: IdCard, element: <HakiProfilePage />, roles: dosen },
+      { path: '/haki/notifikasi', label: 'Notifikasi', icon: Bell, element: <HakiNotificationsPage />, roles: semua },
+      { path: '/haki/bantuan', label: 'Bantuan HKI', icon: CircleHelp, element: <HakiHelpPage />, roles: semua },
+      { path: '/haki/dokumen/:id', label: 'Dokumen HKI', icon: FileText, element: <HakiRecordPage />, roles: semua, hidden: true },
     ],
   },
   {
     title: 'Master Data',
+    icon: Database,
     items: [
-      { path: '/dosen', label: 'Dosen', element: <DosenPage />, roles: admin },
-      { path: '/prodi', label: 'Prodi', element: <ProdiPage />, roles: admin },
-      { path: '/unit', label: 'Unit', element: <UnitPage />, roles: admin },
-      { path: '/kategori-penelitian', label: 'Kategori Penelitian', element: <KategoriPenelitianPage />, roles: admin },
-      { path: '/subkategori-penelitian', label: 'Subkategori Penelitian', element: <SubkategoriPenelitianPage />, roles: admin },
-      { path: '/kategori-pengabdian', label: 'Kategori Pengabdian', element: <KategoriPengabdianPage />, roles: admin },
-      { path: '/subkategori-pengabdian', label: 'Subkategori Pengabdian', element: <SubkategoriPengabdianPage />, roles: admin },
-      { path: '/haki/admin/master', label: 'Master HKI', element: <HakiMasterPage />, roles: ['admin', 'validator'] },
+      { path: '/dosen', label: 'Dosen', icon: IdCard, element: <DosenPage />, roles: admin },
+      { path: '/prodi', label: 'Prodi', icon: GraduationCap, element: <ProdiPage />, roles: admin },
+      { path: '/unit', label: 'Unit', icon: Building2, element: <UnitPage />, roles: admin },
+      { path: '/kategori-penelitian', label: 'Kategori Penelitian', icon: Tags, element: <KategoriPenelitianPage />, roles: admin },
+      { path: '/subkategori-penelitian', label: 'Subkategori Penelitian', icon: ListTree, element: <SubkategoriPenelitianPage />, roles: admin },
+      { path: '/kategori-pengabdian', label: 'Kategori Pengabdian', icon: Tags, element: <KategoriPengabdianPage />, roles: admin },
+      { path: '/subkategori-pengabdian', label: 'Subkategori Pengabdian', icon: ListTree, element: <SubkategoriPengabdianPage />, roles: admin },
+      { path: '/haki/admin/master', label: 'Master HKI', icon: Database, element: <HakiMasterPage />, roles: ['admin', 'validator'] },
     ],
   },
   {
     title: 'Pengaturan',
+    icon: Cog,
     items: [
-      { path: '/pengguna', label: 'Pengguna', element: <PenggunaPage />, roles: admin },
-      { path: '/haki/admin/ai', label: 'Konfigurasi AI', element: <HakiAiPage />, roles: admin },
-      { path: '/haki/admin/audit', label: 'Log Audit', element: <HakiAuditPage />, roles: admin },
+      { path: '/pengguna', label: 'Pengguna', icon: Users, element: <PenggunaPage />, roles: admin },
+      { path: '/haki/admin/ai', label: 'Konfigurasi AI', icon: Cpu, element: <HakiAiPage />, roles: admin },
+      { path: '/haki/admin/audit', label: 'Log Audit', icon: ClipboardList, element: <HakiAuditPage />, roles: admin },
     ],
   },
 ];
+
+export const routeIcons = new Map(menu.flatMap((group) => group.items.map((item) => [item.path, item.icon] as const)));
 
 // Menu yang boleh dibuka oleh role tertentu (grup kosong disembunyikan)
 export function menuFor(role: Role): MenuGroup[] {

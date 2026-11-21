@@ -25,7 +25,7 @@ export default function HistoryTimeline({ items }: { items: HistoryItem[] }) {
           <li key={i}>
             <div>
               <strong>{LABEL[h.aksi] ?? h.aksi}</strong>
-              {h.actor && <span className="muted"> · {h.actor}</span>}
+              {h.actor && <span className="muted"> oleh {h.actor}</span>}
             </div>
             <div className="muted small">{fmtDateTime(h.at)}</div>
             {h.catatan && <div className="timeline-note">{h.catatan}</div>}

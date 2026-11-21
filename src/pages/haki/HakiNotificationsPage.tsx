@@ -1,5 +1,7 @@
+import { CheckCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import { useRemoteData } from '../../lib/useRemoteData';
 import { safeNext } from '../../haki/queueContext';
@@ -53,7 +55,7 @@ export default function HakiNotificationsPage() {
             Belum dibaca saja
           </label>
           <button className="secondary" onClick={() => markRead(unread)} disabled={busy || unread.length === 0}>
-            Tandai semua dibaca
+            <IconLabel icon={CheckCheck}>Tandai semua dibaca</IconLabel>
           </button>
         </div>
       </div>

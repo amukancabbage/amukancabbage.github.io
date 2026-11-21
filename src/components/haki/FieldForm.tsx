@@ -1,5 +1,8 @@
+import { CircleAlert, RotateCcw, Save } from 'lucide-react';
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
+import { IconLabel } from '../AppIcon';
 import { useUnsavedDraft } from '../DraftGuard';
+import SearchSelect from '../SearchSelect';
 import type { HakiSettings } from '../../haki/api';
 import {
   COMMON_FIELDS,
@@ -264,6 +267,13 @@ export default function FieldForm({
         );
       case 'master': {
         const items = master.filter((m) => m.kategori === f.master && (m.aktif || m.nilai === v));
+        if (f.master === 'jenis_ciptaan') {
+          const choices = items.map((m) => ({ value: m.nilai, label: m.label + (m.aktif ? '' : ' (nonaktif)') }));
+          const selected = v ? choices.find((item) => item.value === v) ?? { value: v, label: v } : null;
+          return <SearchSelect id={inputId} label={f.label} describedBy={describedBy} disabled={common.disabled}
+            items={choices} selected={selected} clearable placeholder="Cari jenis ciptaan"
+            onPick={(item) => set(f.key, item?.value ?? '')} />;
+        }
         return (
           <select value={v} onChange={onChange} {...common}>
             <option value="">- pilih -</option>
@@ -349,10 +359,10 @@ export default function FieldForm({
                 : pending > 0 ? `${pending} perubahan belum tersimpan` : savedAt ? `Tersimpan ${savedAt.toLocaleTimeString('id-ID')}` : ''}
             </span>
             {conflict ? (
-              <button type="button" className="secondary" onClick={() => conflictPanel.current?.focus()}>Tinjau konflik</button>
+              <button type="button" className="secondary" onClick={() => conflictPanel.current?.focus()}><IconLabel icon={CircleAlert}>Tinjau konflik</IconLabel></button>
             ) : (
               <button type="button" onClick={() => void save()} disabled={saving || locked || pending === 0}>
-                {error ? 'Coba simpan lagi' : 'Simpan sekarang'}
+                <IconLabel icon={error ? RotateCcw : Save}>{error ? 'Coba simpan lagi' : 'Simpan sekarang'}</IconLabel>
               </button>
             )}
           </div>

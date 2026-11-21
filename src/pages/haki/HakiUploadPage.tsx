@@ -1,15 +1,19 @@
+import { Camera, FilePlus, FolderOpen, RotateCcw, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import { useDraftGuard, useUnsavedDraft } from '../../components/DraftGuard';
+import SearchSelect from '../../components/SearchSelect';
 import PrivacyGate from '../../components/haki/PrivacyGate';
 import { errorText, loadSettings, rpc } from '../../haki/api';
 import { MAX_FILE_BYTES, MAX_FILES_PER_SESSION, MAX_PDF_PAGES } from '../../haki/constants';
 import { fmtBytes } from '../../haki/format';
 import { descendants } from '../../haki/listQuery';
 import { registerCertificate } from '../../haki/upload';
-import { supabase } from '../../lib/supabase';
+import { loadUnits } from '../../haki/useFilterOptions';
+import { lecturerSource, searchChoices, type Choice } from '../../lib/search';
 
 type Item = {
   id: string;
@@ -20,7 +24,6 @@ type Item = {
   owner?: string;
   duplicate?: boolean;
 };
-type DosenOption = { id: number; nama: string };
 
 const labels: Record<Item['state'], string> = {
   antre: 'Siap diunggah',
@@ -36,8 +39,8 @@ export default function HakiUploadPage() {
   const { requestLeave } = useDraftGuard();
   const isOperator = profile.role === 'operator';
   const [items, setItems] = useState<Item[]>([]);
-  const [dosen, setDosen] = useState<DosenOption[]>([]);
-  const [onBehalf, setOnBehalf] = useState('');
+  const [unitIds, setUnitIds] = useState<number[]>([]);
+  const [onBehalf, setOnBehalf] = useState<Choice | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -51,32 +54,27 @@ export default function HakiUploadPage() {
   const uploaded = items.filter((item) => item.state === 'selesai').length;
   const failed = items.filter((item) => item.state === 'gagal').length;
   const pending = queued.length > 0 || failed > 0;
-  const owner = isOperator ? dosen.find((row) => String(row.id) === onBehalf)?.nama : profile.dosen?.nama ?? profile.email;
+  const owner = isOperator ? onBehalf?.label : profile.dosen?.nama ?? profile.email;
 
   useUnsavedDraft({ dirty: pending, saving: busy, discard: () => setItems([]) });
   useEffect(() => { if (newRecord && !busy) navigate('/haki/dokumen/' + newRecord); }, [newRecord, busy, navigate]);
 
   useEffect(() => {
     if (!profile.privacy_notice_accepted_at) return;
-    let alive = true;
+    const controller = new AbortController();
     setLoadError('');
     setMaxPages(null);
     async function load() {
       const settings = await loadSettings();
       if (isOperator && profile.unit_id != null) {
-        // Dosen dalam cakupan unit operator. RPC memvalidasi ulang pemilik.
-        const [units, lecturers] = await Promise.all([
-          supabase.from('units').select('id, parent_id'),
-          supabase.from('dosen').select('id, nama, unit_id').order('nama'),
-        ]);
-        if (units.error || lecturers.error) throw new Error('Daftar dosen gagal dimuat.');
-        const scope = new Set(descendants(units.data ?? [], profile.unit_id));
-        if (alive) setDosen((lecturers.data ?? []).filter((row) => row.unit_id != null && scope.has(row.unit_id)));
+        // Cakupan diterapkan pada query pencarian. RPC memvalidasi ulang pemilik.
+        const units = await loadUnits(controller.signal);
+        if (!controller.signal.aborted) setUnitIds(descendants(units, profile.unit_id));
       }
-      if (alive) setMaxPages(settings.maxPages);
+      if (!controller.signal.aborted) setMaxPages(settings.maxPages);
     }
-    void load().catch(() => { if (alive) setLoadError('Persiapan unggah gagal dimuat.'); });
-    return () => { alive = false; };
+    void load().catch(() => { if (!controller.signal.aborted) setLoadError('Persiapan unggah gagal dimuat.'); });
+    return () => controller.abort();
   }, [profile.privacy_notice_accepted_at, isOperator, profile.unit_id, reload]);
 
   const canPick = !busy && maxPages != null && (!isOperator || !!onBehalf);
@@ -103,7 +101,7 @@ export default function HakiUploadPage() {
         try {
           patch(item.id, { state: 'menyiapkan', message: undefined });
           const prepared = await prepareFile(item.file, maxPages);
-          const recordId = item.recordId ?? await rpc<string>('hki_create_record', { p_on_behalf: isOperator ? Number(onBehalf) : null, p_manual: false });
+          const recordId = item.recordId ?? await rpc<string>('hki_create_record', { p_on_behalf: isOperator ? Number(onBehalf?.value) : null, p_manual: false });
           patch(item.id, { state: 'mengunggah', recordId, owner: item.owner ?? owner ?? undefined });
           const result = await registerCertificate(recordId, prepared, { key: item.id, resume: !!item.recordId });
           patch(item.id, { state: 'selesai', duplicate: result?.duplicate_file });
@@ -150,16 +148,16 @@ export default function HakiUploadPage() {
 
         {isOperator && maxPages != null && (
           <div className="card upload-owner">
-            <label className="field">
-              <span>Atas nama dosen</span>
-              <select value={onBehalf} onChange={(event) => setOnBehalf(event.target.value)} disabled={busy}>
-                <option value="">Pilih dosen pemilik</option>
-                {dosen.map((row) => <option key={row.id} value={row.id}>{row.nama}</option>)}
-              </select>
-            </label>
-            <p className="muted small">
+            <div className="field">
+              <label htmlFor="upload-owner">Atas nama dosen</label>
+              <SearchSelect id="upload-owner" label="Atas nama dosen" selected={onBehalf} onPick={setOnBehalf}
+                lookup={(term, signal) => searchChoices(lecturerSource, term, signal, unitIds)}
+                describedBy="upload-owner-help" clearable placeholder="Ketik nama dosen"
+                disabled={busy || profile.unit_id == null} />
+            </div>
+            <p id="upload-owner-help" className="muted small">
               {profile.unit_id == null ? 'Akun operator belum ditautkan ke unit.'
-                : dosen.length ? 'Pilih pemilik untuk berkas yang akan diunggah.' : 'Belum ada dosen dalam cakupan unit Anda.'}
+                : 'Pilih pemilik berkas dari unit Anda.'}
             </p>
           </div>
         )}
@@ -168,8 +166,8 @@ export default function HakiUploadPage() {
           <h2>Pilih sertifikat</h2>
           <p className="muted small">PDF, JPEG, PNG, atau HEIC. Maksimal {MAX_FILE_BYTES / 1024 ** 2} MB dan {MAX_PDF_PAGES} halaman per berkas, hingga {MAX_FILES_PER_SESSION} berkas per sesi.</p>
           <div className="form-actions wrap">
-            <button type="button" className="secondary" onClick={() => fileInput.current?.click()} disabled={!canPick}>Pilih berkas</button>
-            <button type="button" className="secondary" onClick={() => cameraInput.current?.click()} disabled={!canPick}>Foto dengan kamera</button>
+            <button type="button" className="secondary" onClick={() => fileInput.current?.click()} disabled={!canPick}><IconLabel icon={FolderOpen}>Pilih berkas</IconLabel></button>
+            <button type="button" className="secondary" onClick={() => cameraInput.current?.click()} disabled={!canPick}><IconLabel icon={Camera}>Foto dengan kamera</IconLabel></button>
           </div>
           <input ref={fileInput} type="file" hidden multiple accept="application/pdf,image/jpeg,image/png,image/heic,.heic" onChange={(event) => { addFiles(event.target.files); event.target.value = ''; }} />
           <input ref={cameraInput} type="file" hidden accept="image/*" capture="environment" onChange={(event) => { addFiles(event.target.files); event.target.value = ''; }} />
@@ -179,14 +177,14 @@ export default function HakiUploadPage() {
           <section className="card" aria-labelledby="upload-results" aria-busy={busy}>
             <div className="card-head">
               <h2 id="upload-results">{busy ? 'Memproses berkas' : uploaded || failed ? 'Hasil unggah' : 'Berkas dipilih'}</h2>
-              <span className="muted small" role="status">{uploaded || failed ? `${uploaded} tersimpan · ${failed} gagal` : `${queued.length} berkas`}</span>
+              <span className="muted small" role="status">{uploaded || failed ? `${uploaded} tersimpan, ${failed} gagal` : `${queued.length} berkas`}</span>
             </div>
             <ul className="upload-list">
               {items.map((item) => (
                 <li key={item.id}>
                   <div>
                     <strong>{item.file.name}</strong>
-                    <div className="muted small">{fmtBytes(item.file.size)}{item.owner ? ` · ${item.owner}` : ''}</div>
+                    <div className="muted small">{fmtBytes(item.file.size)}{item.owner ? ` untuk ${item.owner}` : ''}</div>
                     {item.message && <span className="error-inline">{item.message}</span>}
                     {item.duplicate && <div className="muted small">Berkas identik pernah diunggah.</div>}
                   </div>
@@ -194,7 +192,7 @@ export default function HakiUploadPage() {
                   <div className="actions">
                     {item.state === 'selesai' && item.recordId && <Link className="text-action" to={'/haki/dokumen/' + item.recordId}>Buka dokumen</Link>}
                     {item.state === 'gagal' && (
-                      <button type="button" className="secondary" disabled={busy || (!item.recordId && !canPick)} onClick={() => void start([item])}>Coba lagi</button>
+                      <button type="button" className="secondary" disabled={busy || (!item.recordId && !canPick)} onClick={() => void start([item])}><IconLabel icon={RotateCcw}>Coba lagi</IconLabel></button>
                     )}
                     {(item.state === 'antre' || item.state === 'gagal') && (
                       <button type="button" className="secondary" disabled={busy} onClick={() => setItems((current) => current.filter((row) => row.id !== item.id))}>Keluarkan</button>
@@ -210,11 +208,11 @@ export default function HakiUploadPage() {
           {queued.length > 0 && (
             <div className="upload-submit">
               <p className="muted small">{queued.length} berkas siap diunggah{owner ? ` atas nama ${owner}` : ''}.</p>
-              <button type="button" onClick={() => void start(queued)} disabled={!canPick}>Unggah {queued.length} berkas</button>
+              <button type="button" onClick={() => void start(queued)} disabled={!canPick}><IconLabel icon={Upload}>Unggah {queued.length} berkas</IconLabel></button>
             </div>
           )}
           {!isOperator && maxPages != null && (
-            <button className="secondary" onClick={() => requestLeave(createManual)} disabled={busy}>Buat rekaman manual</button>
+            <button className="secondary" onClick={() => requestLeave(createManual)} disabled={busy}><IconLabel icon={FilePlus}>Buat rekaman manual</IconLabel></button>
           )}
         </div>
       </PrivacyGate>

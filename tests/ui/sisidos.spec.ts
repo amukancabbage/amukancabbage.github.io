@@ -17,9 +17,10 @@ test('menu ponsel memindah fokus dan menutup lewat Escape', async ({ page }) => 
   await expect(drawer.getByRole('link', { name: 'Beranda', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(drawer.getByRole('link', { name: 'HKI Saya', exact: true })).toBeFocused();
-  const academic = drawer.getByText('Akademik', { exact: true });
+  const academic = drawer.locator('summary').filter({ hasText: /^Akademik$/ });
   await page.keyboard.press('Tab');
   await expect(academic).toBeFocused();
+  await expect(academic.locator('svg')).toHaveAttribute('aria-hidden', 'true');
   await expect(drawer.getByRole('link', { name: 'Data Penelitian' })).toHaveCount(0);
   await page.keyboard.press('Enter');
   await page.keyboard.press('Tab');
@@ -74,15 +75,18 @@ test('picker upstream menjaga anggota terkunci dan filter daftar', async ({ page
   await (await demo(page)).login('/penelitian?q=Penelitian');
   await page.getByRole('button', { name: 'Tambah penelitian' }).click();
   const dialog = page.getByRole('dialog', { name: 'Tambah penelitian' });
-  const picker = dialog.getByLabel('Pilih tim peneliti');
-  await picker.selectOption('72');
-  await dialog.getByRole('button', { name: 'Tambah', exact: true }).click();
-  const members = dialog.getByRole('listbox', { name: 'Tim Peneliti' });
-  await expect(members.locator('option[value="71"]')).toBeDisabled();
-  await expect(members.locator('option[value="72"]')).toHaveText('Mitra Uji');
-  await members.selectOption('72');
-  await dialog.getByRole('button', { name: 'Hapus', exact: true }).click();
-  await expect(members.locator('option[value="72"]')).toHaveCount(0);
+  const picker = dialog.getByRole('combobox', { name: 'Cari dosen untuk tim peneliti' });
+  await picker.fill('Mitra');
+  await expect(dialog.getByRole('option', { name: 'Mitra Uji' })).toBeVisible();
+  await picker.press('ArrowDown');
+  await picker.press('Enter');
+  const members = dialog.getByRole('list', { name: 'Tim Peneliti terpilih' });
+  const locked = members.getByRole('listitem').filter({ hasText: 'Dosen Uji' });
+  await expect(locked).toContainText('Anda');
+  await expect(locked.getByRole('button')).toHaveCount(0);
+  await expect(members.getByText('Mitra Uji')).toBeVisible();
+  await members.getByRole('button', { name: 'Hapus Mitra Uji' }).click();
+  await expect(members.getByText('Mitra Uji')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Batal' }).click();
   await expect(page.getByLabel('Pencarian')).toHaveValue('Penelitian');
 });
@@ -208,7 +212,7 @@ test('pilihan tema tersimpan dan teks aksi utama memiliki kontras cukup', async 
 
 test('ekspor ZIP meminta filter lebih sempit di atas batas', async ({ page }) => {
   await (await demo(page, 'pemantau', { archiveTotal: 301 })).login('/haki/arsip');
-  await page.getByText('Ekspor', { exact: true }).press('Enter');
+  await page.locator('summary').filter({ hasText: /^Ekspor$/ }).press('Enter');
   await expect(page.getByRole('button', { name: 'CSV', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'ZIP berkas' })).toBeDisabled();
   await expect(page.getByText('Persempit filter untuk ZIP hingga 300 dokumen.')).toBeVisible();

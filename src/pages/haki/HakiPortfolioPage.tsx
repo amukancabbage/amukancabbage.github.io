@@ -1,4 +1,6 @@
+import { Printer } from 'lucide-react';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import { loadMaster, masterLabel, toHakiError } from '../../haki/api';
 import { JENIS_LABEL, STATUS_HKI_LABEL } from '../../haki/constants';
@@ -29,12 +31,12 @@ export default function HakiPortfolioPage() {
           <h1>Portofolio HKI</h1>
           <p className="muted">Dokumen terarsip yang Anda miliki atau Anda konfirmasi sebagai pencipta.</p>
         </div>
-        <button onClick={() => window.print()} disabled={!rows?.length}>Cetak / simpan PDF</button>
+        <button onClick={() => window.print()} disabled={!rows?.length}><IconLabel icon={Printer}>Cetak / simpan PDF</IconLabel></button>
       </div>
       <div className="print-only">
         <h1>Portofolio Hak Kekayaan Intelektual</h1>
         <p>
-          {profile.dosen?.nama} · dicetak {fmtDate(new Date().toISOString())}
+          Dicetak pada {fmtDate(new Date().toISOString())}{profile.dosen?.nama ? ` untuk ${profile.dosen.nama}` : ''}.
         </p>
       </div>
       <AsyncState loading={remote.loading} error={remote.error} onRetry={remote.retry} empty={rows?.length === 0 ? 'Belum ada HKI terarsip.' : undefined} />
@@ -44,16 +46,16 @@ export default function HakiPortfolioPage() {
             <li key={r.id}>
               <strong>{r.judul}</strong>
               <div>
-                {r.jenis ? JENIS_LABEL[r.jenis] : '-'}
-                {r.status_hki ? ` · ${STATUS_HKI_LABEL[r.status_hki]}` : ''}
-                {r.no_sertifikat ? ` · No. ${r.no_sertifikat}` : ''}
-                {r.no_permohonan ? ` · Permohonan ${r.no_permohonan}` : ''}
+                {r.jenis ? JENIS_LABEL[r.jenis] : 'Jenis belum diisi'}
+                {r.status_hki ? `, ${STATUS_HKI_LABEL[r.status_hki]}` : ''}
+                {r.no_sertifikat ? `, sertifikat ${r.no_sertifikat}` : ''}
+                {r.no_permohonan ? `, permohonan ${r.no_permohonan}` : ''}
                 {r.tgl_permohonan ? ` (${fmtDate(r.tgl_permohonan)})` : ''}
               </div>
               <div className="muted">
-                Pencipta: {r.pencipta ?? '-'} · Pemegang: {r.pemegang ?? '-'}
-                {r.berlaku_akhir ? ` · Berlaku s.d. ${fmtDate(r.berlaku_akhir)}` : ''}
-                {r.sumber_dana ? ` · ${masterLabel(master, 'sumber_dana', r.sumber_dana)}` : ''}
+                Pencipta {r.pencipta ?? 'belum tercatat'}. Pemegang hak {r.pemegang ?? 'belum tercatat'}.
+                {r.berlaku_akhir ? ` Berlaku sampai ${fmtDate(r.berlaku_akhir)}.` : ''}
+                {r.sumber_dana ? ` Sumber dana ${masterLabel(master, 'sumber_dana', r.sumber_dana)}.` : ''}
               </div>
             </li>
           ))}

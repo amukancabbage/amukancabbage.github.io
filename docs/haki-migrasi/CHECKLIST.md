@@ -17,6 +17,10 @@ Verifikasi rebuild SISIDOS 2026-11-21. Lima akun demo lokal membuka beranda sesu
 
 Verifikasi penyempurnaan SISIDOS 2026-11-21. Playwright lulus 18 tes pada Chromium. Cakupannya meliputi reflow dua tema, fokus menu dan editor, akses Simpan saat menggulir, autosave 10 detik, dan persetujuan massal sesuai hasil RPC. Uji lokal lima peran memakai PDF dan PNG sintetis dengan AI mock. Operator dapat melanjutkan unggahan setelah gangguan penyimpanan. Dosen dan validator menyelesaikan pengajuan, revisi, koreksi, dan pengarsipan ulang. Pemantau mengunduh CSV, XLSX, dan ZIP.
 
+Audit Tailwind dan ikon SISIDOS. Chromium memeriksa 29 layar dengan data sintetis pada enam lebar dari 320 hingga 1.440 px dalam dua tema. Semua 348 kombinasi bebas scroll horizontal global. Kontras terendah pada teks yang diukur adalah 4,71:1. Pemilih berkas, kontrol pembesaran, dan tombol hapus lampiran memakai target minimal 44 × 44 px. Ikon Lucide pada aksi berteks disembunyikan dari pembaca layar, dan tombol ikon memakai label aksesibel.
+
+Verifikasi daftar dan formulir SISIDOS. Playwright lulus 29 tes pada Chromium, termasuk paginasi server, pemulihan halaman setelah hapus, pencarian pemilih di luar 1.000 dosen pertama, nilai master nonaktif, cakupan unggah operator, pilihan massal, dan ekspor seluruh hasil filter. Uji regresi memastikan Tab memindahkan fokus tanpa menautkan dosen pada pencipta. Audit kontrol baru pada 60 kombinasi layar, peran, dan tema mencatat kontras minimum 5,47:1, target sentuh 44 × 44 px, dan tanpa gulir horizontal. Uji database lulus 151 asersi dan uji fungsi lulus 13 tes.
+
 ---
 
 ## A. Fondasi

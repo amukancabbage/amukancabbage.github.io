@@ -1,8 +1,13 @@
+import { Search } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { JENIS_LABEL, WORKFLOW_LABEL } from '../../haki/constants';
 import { SORTS, type ListFilters } from '../../haki/listQuery';
 import type { MasterItem } from '../../haki/types';
 import type { Unit } from '../../types';
+import { IconLabel } from '../AppIcon';
+import type { ListParams } from '../../lib/pagination';
+import ListSort from '../ListSort';
+import SearchSelect from '../SearchSelect';
 
 type Props = {
   value: ListFilters;
@@ -12,32 +17,32 @@ type Props = {
   statusChoices?: readonly { key: string; label: string }[];
   showQueue?: boolean;
   fixedStatus?: string;
-  total: number | null;
-  actions?: ReactNode;
+  pager: ListParams;
   defaultStatusLabel?: string;
-  onChange: (filters: ListFilters) => void;
+  onChange: (filters: Partial<ListFilters>) => void;
 };
 
 const year = new Date().getFullYear();
 const years = Array.from({ length: 30 }, (_, index) => String(year - index));
 const statuses = Object.entries(WORKFLOW_LABEL).map(([key, label]) => ({ key, label }));
 
-export default function RecordFilters({ value, units, master, showStatus, statusChoices, showQueue, fixedStatus, total, actions, defaultStatusLabel = 'Semua status', onChange }: Props) {
+export default function RecordFilters({ value, units, master, showStatus, statusChoices, showQueue, fixedStatus, pager, defaultStatusLabel = 'Semua status', onChange }: Props) {
   const [query, setQuery] = useState(value.q);
   useEffect(() => { setQuery(value.q); }, [value.q]);
-  const extra = [value.jenis, value.tahun, value.unit, value.sumber, value.sort, ...(showQueue ? [value.conf, value.umur] : [])].filter(Boolean).length;
+  const extra = [value.jenis, value.tahun, value.unit, value.sumber, ...(showQueue ? [value.conf, value.umur] : [])].filter(Boolean).length;
   const choices = statusChoices ?? statuses;
+  const unitItems = units.map((item) => ({ value: String(item.id), label: item.nama }));
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    onChange({ ...value, q: query.trim() });
+    onChange({ q: query.trim() });
   }
 
   function field(key: keyof ListFilters, label: string, children: ReactNode) {
     return (
       <label className="field">
         <span>{label}</span>
-        <select value={value[key]} onChange={(event) => onChange({ ...value, [key]: event.target.value })}>
+        <select value={value[key]} onChange={(event) => onChange({ [key]: event.target.value })}>
           {children}
         </select>
       </label>
@@ -48,7 +53,7 @@ export default function RecordFilters({ value, units, master, showStatus, status
     <section className="card filter-card" aria-label="Pencarian dan filter dokumen">
       <form className="filter-main" onSubmit={submit}>
         <label className="field filter-search">
-          <span>Pencarian</span>
+          <IconLabel icon={Search}>Pencarian</IconLabel>
           <input type="search" placeholder="Judul, nomor, atau pencipta" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
         <button type="submit" className="secondary">Cari</button>
@@ -69,10 +74,12 @@ export default function RecordFilters({ value, units, master, showStatus, status
             {value.tahun && !years.includes(value.tahun) && <option>{value.tahun}</option>}
             {years.map((item) => <option key={item}>{item}</option>)}
           </>)}
-          {field('unit', 'Unit', <>
-            <option value="">Semua unit</option>
-            {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.nama}</option>)}
-          </>)}
+          <div className="field">
+            <label htmlFor="hki-filter-unit">Unit</label>
+            <SearchSelect id="hki-filter-unit" label="Unit" items={unitItems} placeholder="Semua unit" clearable
+              selected={value.unit ? (unitItems.find((item) => item.value === value.unit) ?? { value: value.unit, label: 'Unit ' + value.unit }) : null}
+              onPick={(item) => onChange({ unit: item?.value ?? '' })} />
+          </div>
           {field('sumber', 'Sumber dana', <>
             <option value="">Semua sumber dana</option>
             {master.filter((item) => item.kategori === 'sumber_dana').map((item) => <option key={item.nilai} value={item.nilai}>{item.label}</option>)}
@@ -91,18 +98,11 @@ export default function RecordFilters({ value, units, master, showStatus, status
               <option value="14">Menunggu ≥ 14 hari</option>
             </>)}
           </>}
-          {field('sort', 'Urutkan', <>
-            <option value="">Urutan bawaan</option>
-            {Object.entries(SORTS).map(([key, item]) => <option key={key} value={key}>{item.label}</option>)}
-          </>)}
         </div>
       </details>
-      <div className="filter-results">
-        <span className="muted small" aria-live="polite">
-          {total != null ? `${total.toLocaleString('id-ID')} dokumen` : ''}
-          {total != null && fixedStatus ? ' · ' : ''}{fixedStatus}
-        </span>
-        {actions}
+      <div className="filter-results list-filter-row">
+        <ListSort list={pager} choices={SORTS} compact />
+        {fixedStatus && <span className="muted small">{fixedStatus}</span>}
       </div>
     </section>
   );

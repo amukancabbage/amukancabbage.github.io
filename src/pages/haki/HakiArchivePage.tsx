@@ -1,8 +1,9 @@
+import { Download } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
-import ListPagination from '../../components/ListPagination';
 import ResponsiveList, { type ListColumn } from '../../components/ResponsiveList';
 import RecordFilters from '../../components/haki/RecordFilters';
 import StatusBadge from '../../components/haki/StatusBadge';
@@ -43,7 +44,7 @@ export default function HakiArchivePage() {
   }
 
   const columns: ListColumn<HkiListRow>[] = [
-    { label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
+    { id: 'judul', label: 'Judul', render: (row) => <Link to={'/haki/dokumen/' + row.id} state={{ from: pathname + search }}>{row.judul || '(Tanpa judul)'}</Link> },
     { label: 'No. sertifikat', render: (row) => row.no_sertifikat ?? '–' },
     { label: 'Status', render: (row) => <StatusBadge status={row.workflow_status} /> },
     { label: 'Pencipta', visibility: 'desktop', render: (row) => row.pencipta ?? '–' },
@@ -59,7 +60,7 @@ export default function HakiArchivePage() {
       <header className="page-header">
         <div><h1>Arsip HKI</h1><p className="muted">Cari dan ekspor dokumen dalam cakupan akses Anda. Tahun diambil dari tanggal permohonan.</p></div>
         <details className="actions-disclosure export-actions">
-          <summary>Ekspor</summary>
+          <summary><IconLabel icon={Download}>Ekspor</IconLabel></summary>
           <div className="actions" aria-label="Ekspor arsip">
             <button className="secondary" onClick={() => void exportAs('csv')} disabled={exportDisabled}>CSV</button>
             <button className="secondary" onClick={() => void exportAs('xlsx')} disabled={exportDisabled}>XLSX</button>
@@ -71,12 +72,10 @@ export default function HakiArchivePage() {
       {error && <p className="error" role="alert">{error}</p>}
       {list.total > EXPORT_MAX_ZIP && <p className="muted small">Persempit filter untuk ZIP hingga {EXPORT_MAX_ZIP} dokumen.</p>}
       {list.total > EXPORT_MAX_ROWS && <p className="muted small">CSV dan XLSX memuat hingga {EXPORT_MAX_ROWS} baris pertama.</p>}
-      <RecordFilters value={list.filters} units={list.units} master={list.master} total={list.loading || list.error ? null : list.total} showStatus={allStatuses} defaultStatusLabel="Terarsip (bawaan)" fixedStatus={allStatuses ? undefined : 'Terarsip'} onChange={list.updateFilters} />
+      <RecordFilters value={list.filters} units={list.units} master={list.master} pager={list.pager} showStatus={allStatuses} defaultStatusLabel="Terarsip (bawaan)" fixedStatus={allStatuses ? undefined : 'Terarsip'} onChange={list.updateFilters} />
       <AsyncState error={list.error} loading={list.loading} empty={!list.rows.length ? 'Tidak ada dokumen yang cocok.' : undefined} onRetry={list.retry} />
-      {!list.loading && !list.error && <>
-        <ResponsiveList rows={list.rows} columns={columns} caption="Arsip HKI" />
-        <ListPagination total={list.total} pageSize={PAGE} showTotal={false} />
-      </>}
+      <ResponsiveList rows={list.rows} columns={columns} caption="Arsip HKI"
+        list={list.pager} total={list.total} order={list.order} pending={list.loading} failed={!!list.error} />
     </div>
   );
 }

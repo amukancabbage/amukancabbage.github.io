@@ -1,5 +1,7 @@
+import { Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProfile } from '../../auth';
+import { IconLabel } from '../../components/AppIcon';
 import AsyncState from '../../components/AsyncState';
 import StatusBadge from '../../components/haki/StatusBadge';
 import { rpc, toHakiError } from '../../haki/api';
@@ -53,7 +55,7 @@ export default function HakiBerandaPage() {
     <div className="page">
       <header className="page-header">
         <div><h1>Ringkasan HKI</h1><p className="muted">Dokumen dan tugas dalam cakupan akses Anda.</p></div>
-        <Link to="/haki/unggah" className="button-link">Unggah sertifikat</Link>
+        <Link to="/haki/unggah" className="button-link"><IconLabel icon={Upload}>Unggah sertifikat</IconLabel></Link>
       </header>
       <AsyncState loading={loading} error={error} onRetry={retry} />
       {data && (

@@ -1,4 +1,5 @@
 import CrudPage, { type Field } from '../components/CrudPage';
+import { programSource } from '../lib/search';
 import type { Dosen } from '../types';
 
 const fields: Field<Dosen>[] = [
@@ -9,7 +10,7 @@ const fields: Field<Dosen>[] = [
     label: 'Prodi',
     type: 'select',
     required: true,
-    source: { table: 'prodi', select: 'id, prodi', order: 'prodi', label: (p) => p.prodi },
+    source: programSource,
     render: (d) => d.prodi?.prodi ?? '-',
   },
 ];
@@ -23,6 +24,9 @@ export default function DosenPage() {
       order={[{ column: 'prodi(prodi)' }, { column: 'nama' }]}
       fields={fields}
       pageSize={10}
+      searchColumns={['nama', 'nidn']}
+      searchPlaceholder="Cari nama atau NIDN"
+      listFilter={{ kind: 'source', param: 'prodi', column: 'prodi_id', label: 'Prodi', source: programSource }}
     />
   );
 }
